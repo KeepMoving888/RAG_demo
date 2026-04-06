@@ -1,0 +1,52 @@
+{
+  "signature": {
+    "files": [
+      {
+        "name": "company_policy.txt",
+        "size": 4056,
+        "mtime": 1774184726
+      },
+      {
+        "name": "financial_policy.txt",
+        "size": 2717,
+        "mtime": 1774184726
+      },
+      {
+        "name": "hr_policy.txt",
+        "size": 786,
+        "mtime": 1774184726
+      },
+      {
+        "name": "it_security.txt",
+        "size": 752,
+        "mtime": 1774184726
+      },
+      {
+        "name": "meeting_rules.txt",
+        "size": 627,
+        "mtime": 1774184727
+      },
+      {
+        "name": "performance_bonus.txt",
+        "size": 658,
+        "mtime": 1774184727
+      },
+      {
+        "name": "product_info.txt",
+        "size": 2545,
+        "mtime": 1774184727
+      },
+      {
+        "name": "travel_policy.txt",
+        "size": 684,
+        "mtime": 1774184727
+      }
+    ]
+  },
+  "last_stats": {
+    "success": 8,
+    "failed": 0,
+    "total_chunks": 16,
+    "vector_count": 16
+  }
+}
