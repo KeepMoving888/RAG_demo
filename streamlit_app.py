@@ -81,7 +81,7 @@ def auto_ingest_if_needed(rag_engine) -> Dict:
     state = _load_ingest_state()
 
     if not files:
-        return {"status": "empty", "message": f"文档目录为空：{config.DOCUMENTS_DIR}", "stats": {}}
+        return {"status": "empty", "message": "文档目录为空，请将文件放入 data/documents", "stats": {}}
 
     if state.get("signature") == current_signature:
         return {"status": "cached", "message": "检测到文档未变化，已使用已有向量库缓存", "stats": {}}
@@ -116,7 +116,7 @@ if init_success and config.AUTO_INGEST:
 # ==================== 侧边栏：状态 ====================
 with st.sidebar:
     st.header("📁 文档状态")
-    st.caption(f"文档目录：`{config.DOCUMENTS_DIR}`")
+    st.caption("文档已自动加载")
     st.caption("支持格式：pdf / docx / doc / txt")
 
     files = _list_document_files()
