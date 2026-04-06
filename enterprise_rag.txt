@@ -1,0 +1,14 @@
+rag_knowledge_base/
+├── app/
+│   ├── __init__.py
+│   ├── main.py              # FastAPI主入口
+│   ├── rag_engine.py        # RAG核心引擎
+│   ├── document_processor.py # 文档处理
+│   └── vector_store.py      # 向量存储
+├── frontend/
+│   └── streamlit_app.py     # 前端界面
+├── data/
+│   └── documents/           # 文档存放目录
+├── requirements.txt
+├── config.py
+└── README.md
