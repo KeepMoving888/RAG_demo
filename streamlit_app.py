@@ -100,6 +100,16 @@ with st.sidebar:
             stats = rag_engine.get_stats()
             st.metric("文档数量", stats.get("vector_store", {}).get("document_count", 0))
             st.metric("Top-K", stats.get("config", {}).get("top_k", 5))
+
+            # 显示预加载文档提示
+            st.success('✅ 已加载预置文档，可直接开始问答')
+            with st.expander('查看预置文档列表'):
+                st.markdown(''- 公司政策'')
+                st.markdown(''- 财务制度'')
+                st.markdown(''- 人力资源'')
+                st.markdown(''- 信息安全'')
+                st.markdown(''- 产品说明'')
+                st.markdown(''- 企业培训/技术管理制度'')
         except Exception as e:
             st.warning(f"获取状态失败：{e}")
     else:

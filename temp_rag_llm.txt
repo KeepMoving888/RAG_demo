@@ -37,12 +37,6 @@ class RAGEngine:
             base_url=config.LLM_API_BASE,
             api_key=api_key
         )
-
-        # 自动加载预置文档（如果向量库为空）
-        self._auto_load_sample_docs()
-
-        # 自动加载预置文档（如果向量库为空）
-        self._auto_load_sample_docs()
         
         # 绯荤粺鎻愮ず璇?
         self.system_prompt = """浣犳槸鐢盵HERO]寮€鍙戠殑涓撲笟浼佷笟鏅鸿兘闂瓟鍔╂墜锛屼笓娉ㄤ簬涓虹敤鎴锋彁渚涘噯纭€佸彲闈犵殑浼佷笟鐩稿叧淇℃伅鍜屾湇鍔°€?
@@ -87,41 +81,6 @@ class RAGEngine:
 
 璇峰洖绛旓細"""
     
-    def _auto_load_sample_docs(self):
-        """
-        自动加载 data/documents 目录中的示例文档（仅当向量库为空时）
-        """
-        # 检查向量库是否已有文档
-        if self.vector_store.collection.count() > 0:
-            print('向量库已有文档，跳过自动加载')
-            return
-        
-        # 获取预置文档目录
-        sample_docs_dir = config.DOCUMENTS_DIR
-        
-        if not sample_docs_dir.exists():
-            print(f'预置文档目录不存在：{sample_docs_dir}')
-            return
-        
-        # 获取所有文档文件
-        doc_files = list(sample_docs_dir.glob('*.*'))
-        doc_files = [f for f in doc_files if f.is_file()]
-        
-        if not doc_files:
-            print('预置文档目录为空')
-            return
-        
-        print(f'发现 {len(doc_files)} 个预置文档，开始自动加载...')
-        
-        try:
-            # 转换 Path 为 string 路径
-            file_paths = [str(f) for f in doc_files]
-            stats = self.ingest_documents(file_paths)
-            print(f'自动加载完成：成功 {stats["success"]} 个文件')
-        except Exception as e:
-            print(f'自动加载文档失败：{e}')
-
-    def ingest_documents(
     def ingest_documents(self, file_paths: List[str]) -> Dict:
         """瀵煎叆鏂囨。鍒扮煡璇嗗簱"""
         all_docs = []
