@@ -1,11 +1,10 @@
-"""
-向量存储模块：使用 Chroma 进行向量存储和检索
-支持本地模型和在线嵌入 API
+﻿"""
+鍚戦噺瀛樺偍妯″潡锛氫娇鐢?Chroma 杩涜鍚戦噺瀛樺偍鍜屾绱?鏀寔鏈湴妯″瀷鍜屽湪绾垮祵鍏?API
 """
 import chromadb
 from chromadb.config import Settings
 from typing import List, Dict, Tuple
-from langchain.schema import Document
+from langchain_core.documents import Document
 import numpy as np
 import config
 import re
@@ -13,14 +12,14 @@ from pathlib import Path
 
 
 class EmbeddingClient:
-    """嵌入模型客户端，支持本地模型和在线 API"""
+    """宓屽叆妯″瀷瀹㈡埛绔紝鏀寔鏈湴妯″瀷鍜屽湪绾?API"""
 
     def __init__(self):
         self.model_name = config.EMBEDDING_MODEL
         self._local_model = None
         self._api_client = None
         self._use_api = self._is_api_mode()
-        print(f"嵌入模式：{'在线 API' if self._use_api else '本地模型'}")
+        print(f"宓屽叆妯″紡锛歿'鍦ㄧ嚎 API' if self._use_api else '鏈湴妯″瀷'}")
 
     def _is_api_mode(self) -> bool:
         if config.IS_STREAMLIT_CLOUD:
@@ -34,9 +33,9 @@ class EmbeddingClient:
     def _get_local_model(self):
         if self._local_model is None:
             from sentence_transformers import SentenceTransformer
-            print(f"正在加载本地嵌入模型：{self.model_name}")
+            print(f"姝ｅ湪鍔犺浇鏈湴宓屽叆妯″瀷锛歿self.model_name}")
             self._local_model = SentenceTransformer(self.model_name)
-            print("✅ 本地嵌入模型加载完成")
+            print("鉁?鏈湴宓屽叆妯″瀷鍔犺浇瀹屾垚")
         return self._local_model
 
     def _get_api_client(self):
@@ -46,7 +45,7 @@ class EmbeddingClient:
             if not api_key:
                 api_key = config.LLM_API_KEY.strip()
             if not api_key:
-                raise ValueError("请配置 EMBEDDING_API_KEY 或 LLM_API_KEY")
+                raise ValueError("璇烽厤缃?EMBEDDING_API_KEY 鎴?LLM_API_KEY")
             self._api_client = OpenAI(
                 base_url=config.EMBEDDING_API_BASE,
                 api_key=api_key
@@ -83,7 +82,7 @@ class EmbeddingClient:
                 batch_embeddings = [item.embedding for item in response.data]
                 all_embeddings.extend(batch_embeddings)
             except Exception as e:
-                print(f"嵌入 API 调用失败：{e}")
+                print(f"宓屽叆 API 璋冪敤澶辫触锛歿e}")
                 raise
 
         embeddings = np.array(all_embeddings)
@@ -98,7 +97,7 @@ class EmbeddingClient:
 
 
 class VectorStore:
-    """向量存储类"""
+    """鍚戦噺瀛樺偍绫?""
 
     def __init__(self, persist_dir: str, collection_name: str = None):
         self.persist_dir = persist_dir
@@ -126,9 +125,9 @@ class VectorStore:
             metadata={"hnsw:space": "cosine"}
         )
 
-        print(f"正在初始化嵌入模型：{config.EMBEDDING_MODEL}")
+        print(f"姝ｅ湪鍒濆鍖栧祵鍏ユā鍨嬶細{config.EMBEDDING_MODEL}")
         self.embedding_model = EmbeddingClient()
-        print("✅ 嵌入模型初始化完成")
+        print("鉁?宓屽叆妯″瀷鍒濆鍖栧畬鎴?)
 
     def embed_documents(self, texts: List[str]) -> List[List[float]]:
         embeddings = self.embedding_model.encode(
