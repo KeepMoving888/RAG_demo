@@ -1,6 +1,6 @@
 """
 向量存储模块：使用 Chroma 进行向量存储和检索
-优先使用本地嵌入模型；仅在显式配置 API 时才走在线接口。
+默认使用在线嵌入 API，避免本地大模型依赖。
 """
 from typing import List, Dict, Tuple
 from pathlib import Path
@@ -25,18 +25,15 @@ class EmbeddingClient:
         print(f"嵌入模式：{'在线 API' if self._use_api else '本地模型'}")
 
     def _is_api_mode(self) -> bool:
-        # 仅当本地模型路径不存在，且显式配置了 EMBEDDING_API_BASE 时启用 API
-        model_path = Path(self.model_name)
-        if model_path.exists():
-            return False
+        # 只要配置了 API Base，就使用在线嵌入
         return bool(config.EMBEDDING_API_BASE.strip())
 
     def _get_local_model(self):
         if self._local_model is None:
-            from sentence_transformers import SentenceTransformer
-            print(f"正在加载本地嵌入模型：{self.model_name}")
-            self._local_model = SentenceTransformer(self.model_name)
-            print("✅ 本地嵌入模型加载完成")
+            raise RuntimeError(
+                "未配置在线嵌入 API，且本地嵌入模型依赖未安装。"
+                "请在云端配置 EMBEDDING_API_*，或在本地安装 sentence-transformers 并指向本地模型路径。"
+            )
         return self._local_model
 
     def _get_api_client(self):

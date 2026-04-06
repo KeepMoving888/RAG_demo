@@ -1,5 +1,5 @@
 ﻿"""
-项目配置文件（离线优先 + Streamlit Cloud 兼容）
+项目配置文件（云端部署优先）
 """
 from pathlib import Path
 import os
@@ -19,16 +19,16 @@ MODEL_DIR = BASE_DIR / "models"
 # 不在代码里强制设置 STREAMLIT_CLOUD，交给部署环境或用户显式配置
 IS_STREAMLIT_CLOUD = os.getenv("STREAMLIT_CLOUD", "").lower() in ("true", "1", "yes")
 
-# ==================== 模型与 API 配置（离线优先） ====================
-# 嵌入模型：默认本地模型目录，你可以把模型放到 ./models/bge-m3
-EMBEDDING_MODEL = os.getenv("EMBEDDING_MODEL", str(MODEL_DIR / "bge-m3"))
-EMBEDDING_API_BASE = os.getenv("EMBEDDING_API_BASE", "")
-EMBEDDING_API_KEY = os.getenv("EMBEDDING_API_KEY", "")
+# ==================== 模型与 API 配置（默认在线，可部署） ====================
+# 嵌入模型：默认在线 embedding，避免依赖本地大模型文件
+EMBEDDING_MODEL = os.getenv("EMBEDDING_MODEL", "text-embedding-v3")
+EMBEDDING_API_BASE = os.getenv("EMBEDDING_API_BASE", "https://dashscope.aliyuncs.com/compatible-mode/v1")
+EMBEDDING_API_KEY = os.getenv("EMBEDDING_API_KEY", os.getenv("LLM_API_KEY", ""))
 
-# LLM：默认使用本地 OpenAI 兼容服务地址（如你本地起了 vLLM / LM Studio / Ollama-openai 代理）
+# LLM：默认在线 OpenAI-compatible 服务
 LLM_MODEL = os.getenv("LLM_MODEL", "qwen2.5-7b-instruct")
-LLM_API_BASE = os.getenv("LLM_API_BASE", "http://127.0.0.1:8000/v1")
-LLM_API_KEY = os.getenv("LLM_API_KEY", "not-needed")
+LLM_API_BASE = os.getenv("LLM_API_BASE", "https://dashscope.aliyuncs.com/compatible-mode/v1")
+LLM_API_KEY = os.getenv("LLM_API_KEY", "")
 
 # ==================== RAG 参数 ====================
 CHUNK_SIZE = int(os.getenv("CHUNK_SIZE", "512"))
