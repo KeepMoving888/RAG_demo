@@ -1,131 +1,237 @@
+# 📚 企业知识库 RAG 智能问答系统
 
-# 企业知识库RAG智能问答系统
+> 一个面向企业知识场景的 RAG（Retrieval-Augmented Generation）项目：支持多格式文档接入、语义检索、上下文问答、来源追溯与 Docker 一键部署。
 
-## 项目简介
-基于RAG技术的企业级智能问答系统，支持PDF/Word/TXT文档上传，实现语义检索和智能问答。
+---
 
-## 功能特性
-- 支持多种文档格式上传（PDF、Word、TXT）
-- 基于向量数据库的语义检索
-- 智能问答，支持上下文理解
-- 多源信息融合，提高回答准确性
-- 幻觉检测，确保回答可靠性
-- RESTful API接口，便于集成
-- Streamlit可视化界面
+## 🎯 项目概览
 
-## 快速启动
+企业制度、流程、产品说明等知识通常分散在 PDF/Word/TXT 文档中，传统关键词检索常出现“命中不准、维护成本高、查询链路长”等问题。  
+本项目通过 **语义检索 + 大模型生成** 构建可落地的知识问答闭环，实现：
 
-### 1. 安装依赖
+- 将非结构化文档转为可检索知识库
+- 将召回片段作为上下文约束回答
+- 返回引用来源，提升答案可核验性
+
+---
+
+## ✨ 核心亮点
+
+- 🧠 **完整 RAG 链路**：文档解析 → 文本切分 → 向量化入库 → 相似度召回 → 生成回答
+- 📄 **多格式文档支持**：`PDF / DOCX / DOC / TXT`
+- 🔍 **语义检索增强**：支持 Top-K 召回、阈值过滤、上下文注入
+- 🧾 **来源可追溯**：输出引用文档及相似度分数
+- 🧰 **知识库治理能力**：重建 / 清空 / 统计接口齐全
+- 🖥️ **双入口交互**：FastAPI（接口集成）+ Streamlit（可视化展示）
+- 🐳 **容器化交付**：Docker Compose 一键启动，便于复现
+
+---
+
+## 🖼️ Demo 展示
+
+### 访问入口（Docker 启动后）
+
 ```bash
-# 创建虚拟环境
-python -m venv .venv
+docker compose up -d
+```
+启动后访问：
+- 🌐 Web UI：`http://localhost:8501`
+- 🔌 API：`http://localhost:8001`
+- ✅ 健康检查：`http://localhost:8001/health`
 
-# 激活虚拟环境
-# Windows
-.venv\Scripts\activate
-# Linux/Mac
-# source .venv/bin/activate
+### 效果截图
 
-# 升级pip
-python -m pip install --upgrade pip setuptools wheel
+![Demo 1](./demo.png)
 
-# 安装依赖
-pip install -r requirements-py310.txt
+![Demo 2](./demo%20(2).png)
+
+![Demo 3](./demo%20(3).png)
+
+
+---
+
+## 🧱 技术架构（简述）
+
+```mermaid
+flowchart LR
+    A[用户提问 / 文档输入] --> B[FastAPI / Streamlit]
+    B --> C[RAG 编排层 rag_llm.py]
+
+    C --> D[文档解析 document_parser.py]
+    D --> E[Chunking]
+    E --> F[Embedding]
+    F --> G[(ChromaDB)]
+
+    C --> H[Query Embedding]
+    H --> G
+    G --> I[Top-K 召回]
+    I --> J[Prompt 构建]
+    J --> K[LLM 生成]
+    K --> L[答案 + 引用来源]
 ```
 
-### 2. 配置环境变量
-复制`.env.example`文件为`.env`，并填写相关配置：
+### 组件说明
+
+- **接入层（FastAPI/Streamlit）**：接收问答请求、文档上传与管理操作
+- **编排层（rag_llm.py）**：组织检索流程、构建 Prompt、调用 LLM
+- **解析层（document_parser.py）**：文档文本抽取、清洗与切分
+- **向量层（vector_store.py + ChromaDB）**：向量存储、相似度检索、持久化
+- **模型层（Embedding + LLM）**：语义表示与回答生成
+
+---
+
+## 🛠️ 技术栈
+
+- **语言**：Python 3.10+
+- **后端**：FastAPI、Uvicorn
+- **前端展示**：Streamlit
+- **RAG 组件**：LangChain、ChromaDB
+- **LLM 调用**：OpenAI-compatible API（Qwen / DashScope）
+- **文档处理**：PyPDF2、python-docx
+- **文本处理**：jieba
+- **工程化**：Docker、Docker Compose
+
+---
+
+## 🚀 部署与使用
+
+### A. Docker 方式（推荐）
+
+#### 1) 准备环境变量
+
+复制 `.env.example` 为 `.env`：
 
 ```bash
 cp .env.example .env
 ```
 
-编辑`.env`文件，设置API密钥和模型配置：
+示例配置：
 
-```
-# ===== Qwen (DashScope OpenAI-compatible) =====
-LLM_API_BASE=https://dashscope.aliyuncs.com/compatible-mode/v1
+```env
+EMBEDDING_MODEL=text-embedding-v3
+EMBEDDING_API_BASE=https://dashscope.aliyuncs.com/compatible-mode/v1
+EMBEDDING_API_KEY=your_api_key
+
 LLM_MODEL=qwen2.5-7b-instruct
-
-# 推荐使用 LLM_API_KEY（代码也兼容 DASHSCOPE_API_KEY）
-LLM_API_KEY=your_api_key_here
-
-# ===== Embedding model (local path) =====
-EMBEDDING_MODEL=./models/bge-m3
+LLM_API_BASE=https://dashscope.aliyuncs.com/compatible-mode/v1
+LLM_API_KEY=your_api_key
 ```
 
-### 3. 启动服务
+#### 2) 启动服务
 
-#### FastAPI服务
 ```bash
+docker compose up -d
+```
+
+#### 3) 查看状态与日志
+
+```bash
+# 服务状态
+docker compose ps
+
+# API 日志
+docker compose logs --tail 100 api
+
+# Web 日志
+docker compose logs --tail 100 web
+```
+
+#### 4) 停止服务
+
+```bash
+docker compose down
+```
+
+---
+
+### B. 本地方式（可选）
+
+```bash
+python -m venv .venv
+.venv\Scripts\activate
+pip install -r requirements.txt
 python main.py
-```
-
-服务将在 `http://localhost:8001` 启动，可通过以下端点访问：
-- 健康检查：`GET /health`
-- 上传文档：`POST /api/upload`
-- 查询知识库：`POST /api/query`
-- 获取统计信息：`GET /api/stats`
-- 重建知识库：`POST /api/rebuild`
-- 清空知识库：`DELETE /api/clear`
-
-#### Streamlit界面
-```bash
 streamlit run streamlit_app.py
 ```
 
-Streamlit界面将在 `http://localhost:8501` 启动。
+---
 
-## 项目结构
+## 🔌 常用 API
 
+| 接口 | 方法 | 说明 |
+|---|---|---|
+| `/health` | GET | 健康检查 |
+| `/api/upload` | POST | 上传文档 |
+| `/api/query` | POST | 问答查询 |
+| `/api/stats` | GET | 系统统计 |
+| `/api/rebuild` | POST | 重建知识库 |
+| `/api/clear` | DELETE | 清空知识库 |
+
+---
+
+## 🗂️ 项目结构
+
+```text
+.
+├── main.py                      # FastAPI 服务入口
+├── streamlit_app.py             # Streamlit 页面入口
+├── rag_llm.py                   # RAG 主流程编排
+├── vector_store.py              # 向量存储与检索封装
+├── document_parser.py           # 文档解析与清洗
+├── config.py                    # 配置管理
+├── requirements.txt             # 最终部署依赖
+├── Dockerfile
+├── docker-compose.yml
+├── .dockerignore
+├── .env.example
+├── README.md
+├── PROJECT_SHOWCASE.md
+├── data/
+│   ├── documents/               # 原始文档
+│   ├── chroma_db/               # 运行后生成的向量数据
+│   └── ingest_state.json        # 自动导入状态
+├── models/
+├── demo.png
+├── demo (2).png
+└── demo (3).png
 ```
-├── main.py              # FastAPI主入口
-├── rag_llm.py           # RAG核心引擎
-├── document_parser.py   # 文档解析器
-├── vector_store.py      # 向量存储
-├── config.py            # 配置文件
-├── streamlit_app.py     # Streamlit界面
-├── requirements.txt     # 依赖文件
-├── requirements-py310.txt # Python 3.10专用依赖
-├── .env.example         # 环境变量示例
-├── data/                # 数据目录
-│   ├── documents/       # 文档存储
-│   └── chroma_db/       # 向量数据库
-└── models/              # 模型存储
-```
 
-## 技术栈
+---
 
-- **后端框架**：FastAPI、Streamlit
-- **RAG核心**：LangChain、ChromaDB
-- **嵌入模型**：BGE-M3
-- **LLM**：Qwen 2.5 (通过DashScope API)
-- **文档处理**：PyPDF2、python-docx
-- **向量存储**：ChromaDB
+## ⚡ 性能与优化
 
-## 使用指南
+### 已完成
 
-### 1. 上传文档
-- 通过FastAPI接口 `POST /api/upload` 上传文档
-- 或通过Streamlit界面上传
+- 可配置分块策略：`CHUNK_SIZE` / `CHUNK_OVERLAP`
+- 向量库持久化，减少重复构建成本
+- 文档签名缓存，避免无效重建
+- Top-K 与相似度阈值可调，平衡召回与噪声
 
-### 2. 查询知识库
-- 通过FastAPI接口 `POST /api/query` 发送查询
-- 或通过Streamlit界面输入问题
+### 建议关注指标
 
-### 3. 管理知识库
-- 重建知识库：`POST /api/rebuild`
-- 清空知识库：`DELETE /api/clear`
-- 查看统计信息：`GET /api/stats`
+- 检索延迟（P50 / P95）
+- 端到端问答耗时
+- Top-K 命中情况
+- 回答与检索片段一致性
 
-## 注意事项
+### 可扩展方向
 
-1. 首次启动时，系统会自动导入 `data/documents` 目录下的文档
-2. 请确保 `.env` 文件中的API密钥正确配置
-3. 对于大型文档，可能需要较长的处理时间
-4. 建议在全新的虚拟环境中安装依赖，避免包冲突
+- 引入 Reranker 提升精排质量
+- 混合检索（向量 + BM25）
+- 自动化评测集与回归评估
+- 多租户权限隔离
+- 缓存层（问答缓存 / 向量缓存）
 
-## 许可证
+---
+
+## 📖 进一步阅读
+
+更完整的展示说明（章节化版本）请查看：
+
+- `PROJECT_SHOWCASE.md`
+
+---
+
+## 📄 License
 
 MIT License
-

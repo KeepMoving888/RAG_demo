@@ -77,8 +77,11 @@ class EmbeddingClient:
         client = self._get_api_client()
         all_embeddings = []
 
-        for i in range(0, len(texts), batch_size):
-            batch = texts[i:i + batch_size]
+        # DashScope embedding 接口单次 input 条数上限通常为 10
+        api_batch_size = min(batch_size, 10)
+
+        for i in range(0, len(texts), api_batch_size):
+            batch = texts[i:i + api_batch_size]
             response = client.embeddings.create(
                 model=self.model_name,
                 input=batch,

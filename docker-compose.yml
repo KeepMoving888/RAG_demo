@@ -1,0 +1,34 @@
+services:
+  api:
+    image: keepzhe/rag-app:v1.0.0
+    container_name: rag-api
+    env_file:
+      - .env
+    environment:
+      - PYTHONUNBUFFERED=1
+      - CHROMA_DIR=/app/data/chroma_db
+    command: python main.py
+    ports:
+      - "8001:8001"
+    volumes:
+      - ./data:/app/data
+      - ./models:/app/models
+    restart: unless-stopped
+
+  web:
+    image: keepzhe/rag-app:v1.0.0
+    container_name: rag-web
+    env_file:
+      - .env
+    environment:
+      - PYTHONUNBUFFERED=1
+      - CHROMA_DIR=/app/data/chroma_db
+    command: streamlit run streamlit_app.py --server.port 8501 --server.address 0.0.0.0
+    ports:
+      - "8501:8501"
+    volumes:
+      - ./data:/app/data
+      - ./models:/app/models
+    depends_on:
+      - api
+    restart: unless-stopped
