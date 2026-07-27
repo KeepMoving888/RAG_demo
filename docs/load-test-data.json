@@ -1,0 +1,29 @@
+{
+  "host": "http://localhost:8765",
+  "endpoint": "/api/v1/retrieval/search",
+  "concurrent_users": 20,
+  "duration_seconds": 60,
+  "spawn_rate": 2,
+  "total_requests": 529,
+  "total_success": 529,
+  "total_errors": 0,
+  "overall_error_rate": 0.0,
+  "qps": 8.82,
+  "success_qps": 8.82,
+  "all_avg_ms": 2107.8,
+  "all_p50_ms": 2069.3,
+  "all_p95_ms": 2304.2,
+  "all_p99_ms": 2823.2,
+  "all_min_ms": 2037.3,
+  "all_max_ms": 3023.6,
+  "success_avg_ms": 2107.8,
+  "success_p50_ms": 2069.3,
+  "success_p95_ms": 2304.2,
+  "success_p99_ms": 2823.2,
+  "success_min_ms": 2037.3,
+  "success_max_ms": 3023.6,
+  "status_distribution": {
+    "200": 529
+  },
+  "timestamp": "2026-07-26 18:00:44"
+}

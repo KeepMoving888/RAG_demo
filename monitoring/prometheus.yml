@@ -1,0 +1,67 @@
+# ============================================================
+# Enterprise RAG Knowledge Base - Prometheus 采集配置
+# ============================================================
+
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    cluster: enterprise-rag-kb
+    environment: production
+
+# 告警规则
+rule_files:
+  - alerts.yml
+
+# 采集目标
+scrape_configs:
+  # ======================== FastAPI 后端 ========================
+  - job_name: backend
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["backend:8000"]
+        labels:
+          service: backend
+    scrape_interval: 10s
+
+  # ======================== Celery Worker (经 Flower 暴露) ========================
+  - job_name: flower
+    static_configs:
+      - targets: ["flower:5555"]
+        labels:
+          service: celery
+    metrics_path: /metrics
+    scrape_interval: 30s
+
+  # ======================== Milvus 内置指标 ========================
+  - job_name: milvus
+    static_configs:
+      - targets: ["milvus:9091"]
+        labels:
+          service: milvus
+    scrape_interval: 30s
+
+  # ======================== PostgreSQL Exporter (可选) ========================
+  # 若部署了 prometheuscommunity/postgres-exporter, 取消注释
+  # - job_name: postgres
+  #   static_configs:
+  #     - targets: ["postgres-exporter:9187"]
+
+  # ======================== Redis Exporter (可选) ========================
+  # - job_name: redis
+  #   static_configs:
+  #     - targets: ["redis-exporter:9121"]
+
+  # ======================== Neo4j 指标 (需开启 Neo4j Prometheus 插件) ========================
+  # - job_name: neo4j
+  #   static_configs:
+  #     - targets: ["neo4j:2004"]
+
+  # ======================== RabbitMQ 指标 ========================
+  - job_name: rabbitmq
+    static_configs:
+      - targets: ["rabbitmq:15692"]
+        labels:
+          service: rabbitmq
+    metrics_path: /metrics
+    scrape_interval: 30s

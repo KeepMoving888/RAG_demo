@@ -1,0 +1,418 @@
+[
+  {
+    "term": "车规 eMMC 5.1",
+    "synonyms": [
+      "车规eMMC",
+      "AEC-Q100 eMMC",
+      "车载存储"
+    ],
+    "category": "产品代号"
+  },
+  {
+    "term": "eMMC 5.1",
+    "synonyms": [
+      "eMMC",
+      "嵌入式MMC",
+      "HS400"
+    ],
+    "category": "产品代号"
+  },
+  {
+    "term": "LPDDR4X",
+    "synonyms": [
+      "LPDDR4",
+      "低功耗DDR4",
+      "移动内存"
+    ],
+    "category": "产品代号"
+  },
+  {
+    "term": "NAND Flash",
+    "synonyms": [
+      "NAND",
+      "闪存",
+      "TLC",
+      "QLC"
+    ],
+    "category": "技术术语"
+  },
+  {
+    "term": "UHF",
+    "synonyms": [
+      "超高频",
+      "860-960MHz"
+    ],
+    "category": "技术术语"
+  },
+  {
+    "term": "HF",
+    "synonyms": [
+      "高频",
+      "13.56MHz"
+    ],
+    "category": "技术术语"
+  },
+  {
+    "term": "LF",
+    "synonyms": [
+      "低频",
+      "125kHz"
+    ],
+    "category": "技术术语"
+  },
+  {
+    "term": "EPC Gen2",
+    "synonyms": [
+      "Gen2",
+      "ISO 18000-6C",
+      "EPCglobal"
+    ],
+    "category": "协议"
+  },
+  {
+    "term": "MES",
+    "synonyms": [
+      "制造执行系统",
+      "Manufacturing Execution System"
+    ],
+    "category": "系统集成"
+  },
+  {
+    "term": "ERP",
+    "synonyms": [
+      "企业资源计划",
+      "Enterprise Resource Planning"
+    ],
+    "category": "系统集成"
+  },
+  {
+    "term": "WMS",
+    "synonyms": [
+      "仓库管理系统",
+      "Warehouse Management System"
+    ],
+    "category": "系统集成"
+  },
+  {
+    "term": "OA",
+    "synonyms": [
+      "办公自动化",
+      "Office Automation"
+    ],
+    "category": "信息系统"
+  },
+  {
+    "term": "CCC",
+    "synonyms": [
+      "3C认证",
+      "中国强制认证"
+    ],
+    "category": "认证"
+  },
+  {
+    "term": "CE",
+    "synonyms": [
+      "CE认证",
+      "欧盟认证"
+    ],
+    "category": "认证"
+  },
+  {
+    "term": "FCC",
+    "synonyms": [
+      "FCC认证",
+      "美国联邦通信委员会"
+    ],
+    "category": "认证"
+  },
+  {
+    "term": "RoHS",
+    "synonyms": [
+      "环保认证",
+      "有害物质限制"
+    ],
+    "category": "认证"
+  },
+  {
+    "term": "ATEX",
+    "synonyms": [
+      "欧盟车规",
+      "ATmospheres EXplosibles"
+    ],
+    "category": "认证"
+  },
+  {
+    "term": "IECEx",
+    "synonyms": [
+      "国际车规",
+      "IEC车规"
+    ],
+    "category": "认证"
+  },
+  {
+    "term": "IP54",
+    "synonyms": [
+      "防尘防水54",
+      "防护等级54"
+    ],
+    "category": "防护等级"
+  },
+  {
+    "term": "IP65",
+    "synonyms": [
+      "防尘防水65",
+      "防护等级65"
+    ],
+    "category": "防护等级"
+  },
+  {
+    "term": "VESA",
+    "synonyms": [
+      "VESA标准",
+      "显示器安装标准"
+    ],
+    "category": "标准"
+  },
+  {
+    "term": "SKU",
+    "synonyms": [
+      "库存单位",
+      "Stock Keeping Unit"
+    ],
+    "category": "仓储"
+  },
+  {
+    "term": "SN",
+    "synonyms": [
+      "序列号",
+      "Serial Number"
+    ],
+    "category": "标识"
+  },
+  {
+    "term": "PM",
+    "synonyms": [
+      "项目经理",
+      "Project Manager"
+    ],
+    "category": "角色"
+  },
+  {
+    "term": "QPS",
+    "synonyms": [
+      "每秒查询数",
+      "Queries Per Second"
+    ],
+    "category": "性能指标"
+  },
+  {
+    "term": "P0",
+    "synonyms": [
+      "P0级",
+      "最高优先级"
+    ],
+    "category": "优先级"
+  },
+  {
+    "term": "P1",
+    "synonyms": [
+      "P1级",
+      "高优先级"
+    ],
+    "category": "优先级"
+  },
+  {
+    "term": "SLA",
+    "synonyms": [
+      "服务等级协议",
+      "Service Level Agreement"
+    ],
+    "category": "服务"
+  },
+  {
+    "term": "TAM",
+    "synonyms": [
+      "技术客户经理",
+      "Technical Account Manager"
+    ],
+    "category": "角色"
+  },
+  {
+    "term": "NAND 颗粒",
+    "synonyms": [
+      "NAND die",
+      "闪存芯片",
+      "存储颗粒"
+    ],
+    "category": "硬件"
+  },
+  {
+    "term": "工牌",
+    "synonyms": [
+      "员工卡",
+      "IC卡"
+    ],
+    "category": "办公"
+  },
+  {
+    "term": "车规",
+    "synonyms": [
+      "车规型",
+      "车规版本"
+    ],
+    "category": "产品形态"
+  },
+  {
+    "term": "物料编码",
+    "synonyms": [
+      "物料号",
+      "料号"
+    ],
+    "category": "仓储"
+  },
+  {
+    "term": "盘点",
+    "synonyms": [
+      "库存盘点",
+      "盘库"
+    ],
+    "category": "仓储"
+  },
+  {
+    "term": "出入库",
+    "synonyms": [
+      "入库",
+      "出库",
+      "收发货"
+    ],
+    "category": "仓储"
+  },
+  {
+    "term": "线边仓",
+    "synonyms": [
+      "车间仓库",
+      "线边库"
+    ],
+    "category": "场景"
+  },
+  {
+    "term": "中央仓库",
+    "synonyms": [
+      "主仓库",
+      "总仓"
+    ],
+    "category": "场景"
+  },
+  {
+    "term": "经销商",
+    "synonyms": [
+      "代理商",
+      "渠道商"
+    ],
+    "category": "渠道"
+  },
+  {
+    "term": "授权",
+    "synonyms": [
+      "经销授权",
+      "渠道授权"
+    ],
+    "category": "渠道"
+  },
+  {
+    "term": "保修",
+    "synonyms": [
+      "质保",
+      "保修期"
+    ],
+    "category": "售后"
+  },
+  {
+    "term": "延保",
+    "synonyms": [
+      "延长保修",
+      "延保服务"
+    ],
+    "category": "售后"
+  },
+  {
+    "term": "寄修",
+    "synonyms": [
+      "邮寄维修",
+      "返厂维修"
+    ],
+    "category": "售后"
+  },
+  {
+    "term": "备机",
+    "synonyms": [
+      "备用机",
+      "临时替换机"
+    ],
+    "category": "售后"
+  },
+  {
+    "term": "固件",
+    "synonyms": [
+      "firmware",
+      "嵌入式系统"
+    ],
+    "category": "软件"
+  },
+  {
+    "term": "触控屏",
+    "synonyms": [
+      "触摸屏",
+      "电容屏"
+    ],
+    "category": "硬件"
+  },
+  {
+    "term": "Cortex-A55",
+    "synonyms": [
+      "ARM A55",
+      "A55"
+    ],
+    "category": "硬件"
+  },
+  {
+    "term": "LPDDR4",
+    "synonyms": [
+      "低功耗内存",
+      "DDR4"
+    ],
+    "category": "硬件"
+  },
+  {
+    "term": "eMMC",
+    "synonyms": [
+      "嵌入式存储",
+      "闪存"
+    ],
+    "category": "硬件"
+  },
+  {
+    "term": "千兆以太网",
+    "synonyms": [
+      "千兆网",
+      "Gigabit Ethernet"
+    ],
+    "category": "通信"
+  },
+  {
+    "term": "WiFi 6",
+    "synonyms": [
+      "802.11ax",
+      "Wi-Fi6"
+    ],
+    "category": "通信"
+  },
+  {
+    "term": "5G",
+    "synonyms": [
+      "第五代移动通信",
+      "NR"
+    ],
+    "category": "通信"
+  }
+]

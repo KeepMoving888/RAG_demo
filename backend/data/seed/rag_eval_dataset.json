@@ -1,0 +1,162 @@
+[
+  {
+    "query": "车规 eMMC 5.1 技术规格",
+    "relevant_chunk_ids": ["1", "18", "20"],
+    "relevance_level": {"1": 3, "18": 2, "20": 1}
+  },
+  {
+    "query": "车规 eMMC 5.1 工作温度范围",
+    "relevant_chunk_ids": ["1", "18"],
+    "relevance_level": {"1": 3, "18": 2}
+  },
+  {
+    "query": "车规 eMMC 5.1 认证要求",
+    "relevant_chunk_ids": ["1", "20", "24"],
+    "relevance_level": {"1": 3, "20": 2, "24": 2}
+  },
+  {
+    "query": "eMMC 5.1 工业级规格书",
+    "relevant_chunk_ids": ["2", "1"],
+    "relevance_level": {"2": 3, "1": 2}
+  },
+  {
+    "query": "eMMC 与车规 eMMC 差异",
+    "relevant_chunk_ids": ["1", "2"],
+    "relevance_level": {"1": 3, "2": 3}
+  },
+  {
+    "query": "LPDDR4X DRAM 应用场景",
+    "relevant_chunk_ids": ["3", "35"],
+    "relevance_level": {"3": 3, "35": 2}
+  },
+  {
+    "query": "DRAM 颗粒选型指南",
+    "relevant_chunk_ids": ["35", "3"],
+    "relevance_level": {"35": 3, "3": 2}
+  },
+  {
+    "query": "存储产品售后常见问题",
+    "relevant_chunk_ids": ["4", "17"],
+    "relevance_level": {"4": 3, "17": 2}
+  },
+  {
+    "query": "存储产品保修期多久",
+    "relevant_chunk_ids": ["16", "4"],
+    "relevance_level": {"16": 3, "4": 2}
+  },
+  {
+    "query": "存储产品价格政策",
+    "relevant_chunk_ids": ["5", "13"],
+    "relevance_level": {"5": 3, "13": 2}
+  },
+  {
+    "query": "经销商折扣",
+    "relevant_chunk_ids": ["5", "13"],
+    "relevance_level": {"5": 2, "13": 3}
+  },
+  {
+    "query": "大客户采购优惠",
+    "relevant_chunk_ids": ["5", "13"],
+    "relevance_level": {"5": 3, "13": 2}
+  },
+  {
+    "query": "订单处理流程",
+    "relevant_chunk_ids": ["6", "5"],
+    "relevance_level": {"6": 3, "5": 1}
+  },
+  {
+    "query": "退货退款流程",
+    "relevant_chunk_ids": ["7", "4"],
+    "relevance_level": {"7": 3, "4": 2}
+  },
+  {
+    "query": "新员工报到流程",
+    "relevant_chunk_ids": ["8", "14"],
+    "relevance_level": {"8": 3, "14": 1}
+  },
+  {
+    "query": "差旅报销标准",
+    "relevant_chunk_ids": ["9"],
+    "relevance_level": {"9": 3}
+  },
+  {
+    "query": "招待费审批",
+    "relevant_chunk_ids": ["9"],
+    "relevance_level": {"9": 3}
+  },
+  {
+    "query": "研发立项流程",
+    "relevant_chunk_ids": ["10", "34"],
+    "relevance_level": {"10": 3, "34": 1}
+  },
+  {
+    "query": "存储术语速查",
+    "relevant_chunk_ids": ["11", "35"],
+    "relevance_level": {"11": 3, "35": 1}
+  },
+  {
+    "query": "NAND Flash 类型有哪些",
+    "relevant_chunk_ids": ["11", "27", "28"],
+    "relevance_level": {"11": 3, "27": 2, "28": 2}
+  },
+  {
+    "query": "NOR Flash 闪存规格",
+    "relevant_chunk_ids": ["39", "11"],
+    "relevance_level": {"39": 3, "11": 1}
+  },
+  {
+    "query": "设备维护手册",
+    "relevant_chunk_ids": ["12", "40"],
+    "relevance_level": {"12": 3, "40": 2}
+  },
+  {
+    "query": "故障代码 E001 含义",
+    "relevant_chunk_ids": ["12", "4"],
+    "relevance_level": {"12": 3, "4": 2}
+  },
+  {
+    "query": "经销商授权等级",
+    "relevant_chunk_ids": ["13", "5"],
+    "relevance_level": {"13": 3, "5": 1}
+  },
+  {
+    "query": "账号权限管理",
+    "relevant_chunk_ids": ["14", "31"],
+    "relevance_level": {"14": 3, "31": 2}
+  },
+  {
+    "query": "供应商考核",
+    "relevant_chunk_ids": ["15", "32"],
+    "relevance_level": {"15": 3, "32": 2}
+  },
+  {
+    "query": "客户服务规范",
+    "relevant_chunk_ids": ["17", "4"],
+    "relevance_level": {"17": 3, "4": 2}
+  },
+  {
+    "query": "MES 系统集成",
+    "relevant_chunk_ids": ["19"],
+    "relevance_level": {"19": 3}
+  },
+  {
+    "query": "ISO 9001 质量体系",
+    "relevant_chunk_ids": ["21", "20"],
+    "relevance_level": {"21": 3, "20": 2}
+  },
+  {
+    "query": "CE 认证要求",
+    "relevant_chunk_ids": ["24", "20", "1"],
+    "relevance_level": {"24": 3, "20": 2, "1": 1}
+  },
+  {
+    "query": "RoHS 符合性",
+    "relevant_chunk_ids": ["26", "20"],
+    "relevance_level": {"26": 3, "20": 2}
+  },
+  {
+    "query": "3D NAND 堆叠专利",
+    "relevant_chunk_ids": ["28", "27", "34"],
+    "relevance_level": {"28": 3, "27": 2, "34": 1}
+  }
+]

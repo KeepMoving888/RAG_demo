@@ -1,0 +1,161 @@
+# ============================================================
+# Enterprise RAG Knowledge Base - Prometheus 告警规则 (12 条)
+# ============================================================
+
+groups:
+  - name: rag_retrieval
+    interval: 30s
+    rules:
+      # 1. 检索 P95 延迟过高
+      - alert: RAGRetrievalLatencyHigh
+        expr: histogram_quantile(0.95, sum(rate(rag_retrieval_latency_ms_bucket[5m])) by (le, stage)) > 500
+        for: 5m
+        labels:
+          severity: warning
+          category: retrieval
+        annotations:
+          summary: "检索 {{ $labels.stage }} 阶段 P95 延迟过高"
+          description: "{{ $labels.stage }} 阶段 P95 延迟 = {{ $value }}ms (阈值 500ms), 请检查索引/缓存/模型加载状态"
+
+      # 2. 召回率下降
+      - alert: RAGRetrievalRecallDrop
+        expr: rag_retrieval_recall{strategy="full"} < 0.85
+        for: 10m
+        labels:
+          severity: warning
+          category: retrieval
+        annotations:
+          summary: "混合检索召回率下降"
+          description: "full 策略召回率 = {{ $value }} (阈值 0.85), 请检查术语词典/分块策略"
+
+      # 3. 答案溯源覆盖率低
+      - alert: RAGCitationCoverageLow
+        expr: rag_citation_coverage < 0.8
+        for: 10m
+        labels:
+          severity: warning
+          category: qa
+        annotations:
+          summary: "答案溯源覆盖率低"
+          description: "溯源覆盖率 = {{ $value }} (阈值 0.8), 答案可信度下降"
+
+  - name: rag_qa
+    interval: 30s
+    rules:
+      # 4. QA 缓存命中率低
+      - alert: RAGQACacheHitRateLow
+        expr: |
+          sum(rate(rag_qa_cache_hit_total{result="hit"}[10m])) by (endpoint)
+          / sum(rate(rag_qa_cache_hit_total[10m])) by (endpoint) < 0.2
+        for: 15m
+        labels:
+          severity: info
+          category: qa
+        annotations:
+          summary: "QA 缓存命中率低"
+          description: "命中率 < 20%, 可能是查询分布过于分散或 TTL 过短"
+
+      # 5. 限流拒绝率高
+      - alert: RAGRateLimitHigh
+        expr: |
+          sum(rate(rag_rate_limit_rejected_total[5m])) by (endpoint)
+          / sum(rate(rag_qa_cache_hit_total[5m])) by (endpoint) > 0.05
+        for: 5m
+        labels:
+          severity: warning
+          category: qa
+        annotations:
+          summary: "限流拒绝率高"
+          description: "限流拒绝比例 > 5%, 考虑扩容或调整 QPM 配额"
+
+      # 6. QA 响应延迟过高
+      - alert: RAGQAResponseLatencyHigh
+        expr: histogram_quantile(0.95, sum(rate(rag_qa_response_latency_ms_bucket[5m])) by (le)) > 5000
+        for: 5m
+        labels:
+          severity: warning
+          category: qa
+        annotations:
+          summary: "QA 响应 P95 延迟过高"
+          description: "P95 = {{ $value }}ms (阈值 5000ms), 检查 LLM 调用/检索/生成耗时分布"
+
+  - name: rag_graph
+    interval: 30s
+    rules:
+      # 7. 图谱查询失败率高
+      - alert: RAGGraphQueryFailed
+        expr: |
+          sum(rate(rag_graph_query_result_total{status="failed"}[5m]))
+          / sum(rate(rag_graph_query_result_total[5m])) > 0.1
+        for: 5m
+        labels:
+          severity: critical
+          category: graph
+        annotations:
+          summary: "GraphRAG 查询失败率高"
+          description: "失败率 > 10%, 检查 Neo4j 连接/Cypher 校验/Schema"
+
+      # 8. 图谱查询延迟高
+      - alert: RAGGraphQueryLatencyHigh
+        expr: histogram_quantile(0.95, sum(rate(rag_graph_query_latency_ms_bucket[5m])) by (le)) > 500
+        for: 5m
+        labels:
+          severity: warning
+          category: graph
+        annotations:
+          summary: "图谱查询 P95 延迟高"
+          description: "P95 = {{ $value }}ms (阈值 500ms), 检查索引/节点规模"
+
+  - name: rag_ingestion
+    interval: 60s
+    rules:
+      # 9. 文档解析失败率高
+      - alert: RAGDocParseFailed
+        expr: |
+          sum(rate(rag_doc_parse_result_total{status="failed"}[15m]))
+          / sum(rate(rag_doc_parse_result_total[15m])) > 0.05
+        for: 10m
+        labels:
+          severity: warning
+          category: ingestion
+        annotations:
+          summary: "文档解析失败率高"
+          description: "失败率 > 5%, 检查 PaddleOCR/PyMuPDF/Celery Worker 状态"
+
+      # 10. 单文档解析耗时过长
+      - alert: RAGDocParseSlow
+        expr: histogram_quantile(0.95, sum(rate(rag_doc_parse_duration_ms_bucket[10m])) by (le)) > 300000
+        for: 10m
+        labels:
+          severity: info
+          category: ingestion
+        annotations:
+          summary: "文档解析 P95 耗时过长"
+          description: "P95 = {{ $value }}ms (阈值 300s), 大文件 OCR 可能需要扩容 Worker"
+
+  - name: infrastructure
+    interval: 30s
+    rules:
+      # 11. 服务宕机
+      - alert: ServiceDown
+        expr: up == 0
+        for: 1m
+        labels:
+          severity: critical
+          category: infra
+        annotations:
+          summary: "{{ $labels.job }} 服务不可用"
+          description: "{{ $labels.instance }} 已离线超过 1 分钟"
+
+      # 12. 高错误率
+      - alert: HighErrorRate
+        expr: |
+          sum(rate(http_requests_total{status=~"5.."}[5m])) by (service)
+          / sum(rate(http_requests_total[5m])) by (service) > 0.05
+        for: 5m
+        labels:
+          severity: critical
+          category: infra
+        annotations:
+          summary: "{{ $labels.service }} 5xx 错误率高"
+          description: "5xx 错误率 > 5%, 请检查日志排查根因"
