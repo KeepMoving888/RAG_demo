@@ -12,6 +12,7 @@ GraphRAG 知识图谱模块单元测试
 测试在离线模式 (NEO4J_HOST=invalid, LLM_PROVIDER=offline) 下运行,
 全部依赖降级路径, 无需 Neo4j 实例与 LLM API.
 """
+
 from __future__ import annotations
 
 import pytest
@@ -145,10 +146,7 @@ class TestCypherSecurity:
 
     def test_reject_call_procedure(self):
         """CALL 过程调用必须拒绝 (防过程注入)."""
-        cypher = (
-            "MATCH (n:Product) RETURN n LIMIT 10 "
-            "CALL db.labels() YIELD label RETURN label"
-        )
+        cypher = "MATCH (n:Product) RETURN n LIMIT 10 CALL db.labels() YIELD label RETURN label"
         ok, reason = GraphCypherQAChain.validate_cypher(cypher)
         assert ok is False
         assert "CALL" in reason
@@ -173,10 +171,18 @@ class TestEntityDedup:
     def test_merge_same_name_type_entities(self):
         """同 name + type 的实体应合并为一条."""
         entities = [
-            Entity(name="车规 eMMC", type=EntityType.Product.value,
-                   properties={"category": "存储"}, source_chunk_id=1),
-            Entity(name="车规 eMMC", type=EntityType.Product.value,
-                   properties={"capacity": "64GB"}, source_chunk_id=2),
+            Entity(
+                name="车规 eMMC",
+                type=EntityType.Product.value,
+                properties={"category": "存储"},
+                source_chunk_id=1,
+            ),
+            Entity(
+                name="车规 eMMC",
+                type=EntityType.Product.value,
+                properties={"capacity": "64GB"},
+                source_chunk_id=2,
+            ),
         ]
         merged, _ = EntityExtractor._merge_dedup(entities, [])
         assert len(merged) == 1
@@ -186,12 +192,18 @@ class TestEntityDedup:
     def test_merge_properties_overlay(self):
         """properties 覆盖式合并: 后者覆盖前者同名字段, 不同字段并存."""
         entities = [
-            Entity(name="车规 eMMC", type=EntityType.Product.value,
-                   properties={"category": "存储", "capacity": "32GB"},
-                   source_chunk_id=1),
-            Entity(name="车规 eMMC", type=EntityType.Product.value,
-                   properties={"capacity": "64GB", "grade": "AEC-Q100"},
-                   source_chunk_id=2),
+            Entity(
+                name="车规 eMMC",
+                type=EntityType.Product.value,
+                properties={"category": "存储", "capacity": "32GB"},
+                source_chunk_id=1,
+            ),
+            Entity(
+                name="车规 eMMC",
+                type=EntityType.Product.value,
+                properties={"capacity": "64GB", "grade": "AEC-Q100"},
+                source_chunk_id=2,
+            ),
         ]
         merged, _ = EntityExtractor._merge_dedup(entities, [])
         assert len(merged) == 1
@@ -206,10 +218,12 @@ class TestEntityDedup:
     def test_merge_source_chunk_id_union(self):
         """source_chunk_id 应取首个非 None 值 (多来源由 Neo4j 侧承接)."""
         entities = [
-            Entity(name="车规 eMMC", type=EntityType.Product.value,
-                   properties={}, source_chunk_id=1),
-            Entity(name="车规 eMMC", type=EntityType.Product.value,
-                   properties={}, source_chunk_id=2),
+            Entity(
+                name="车规 eMMC", type=EntityType.Product.value, properties={}, source_chunk_id=1
+            ),
+            Entity(
+                name="车规 eMMC", type=EntityType.Product.value, properties={}, source_chunk_id=2
+            ),
         ]
         merged, _ = EntityExtractor._merge_dedup(entities, [])
         assert len(merged) == 1
@@ -219,10 +233,8 @@ class TestEntityDedup:
     def test_no_merge_different_type_entities(self):
         """同 name 但不同 type 的实体不应合并 (视为不同实体)."""
         entities = [
-            Entity(name="Phoenix", type=EntityType.Product.value,
-                   source_chunk_id=1),
-            Entity(name="Phoenix", type=EntityType.Project.value,
-                   source_chunk_id=2),
+            Entity(name="Phoenix", type=EntityType.Product.value, source_chunk_id=1),
+            Entity(name="Phoenix", type=EntityType.Project.value, source_chunk_id=2),
         ]
         merged, _ = EntityExtractor._merge_dedup(entities, [])
         assert len(merged) == 2
@@ -230,10 +242,8 @@ class TestEntityDedup:
     def test_no_merge_different_name_entities(self):
         """不同 name 的实体不合并."""
         entities = [
-            Entity(name="车规 eMMC", type=EntityType.Product.value,
-                   source_chunk_id=1),
-            Entity(name="eMMC 5.1", type=EntityType.Product.value,
-                   source_chunk_id=2),
+            Entity(name="车规 eMMC", type=EntityType.Product.value, source_chunk_id=1),
+            Entity(name="eMMC 5.1", type=EntityType.Product.value, source_chunk_id=2),
         ]
         merged, _ = EntityExtractor._merge_dedup(entities, [])
         assert len(merged) == 2
@@ -241,14 +251,24 @@ class TestEntityDedup:
     def test_merge_relations_by_key(self):
         """同 source + target + relation_type 的关系应合并为一条."""
         relations = [
-            Relation(source_entity="车规 eMMC", source_type=EntityType.Product.value,
-                     target_entity="质量部", target_type=EntityType.Department.value,
-                     relation_type=RelationType.CERTIFIED_BY.value,
-                     properties={"date": "2024-01"}, source_chunk_id=1),
-            Relation(source_entity="车规 eMMC", source_type=EntityType.Product.value,
-                     target_entity="质量部", target_type=EntityType.Department.value,
-                     relation_type=RelationType.CERTIFIED_BY.value,
-                     properties={"standard": "ISO 9001"}, source_chunk_id=2),
+            Relation(
+                source_entity="车规 eMMC",
+                source_type=EntityType.Product.value,
+                target_entity="质量部",
+                target_type=EntityType.Department.value,
+                relation_type=RelationType.CERTIFIED_BY.value,
+                properties={"date": "2024-01"},
+                source_chunk_id=1,
+            ),
+            Relation(
+                source_entity="车规 eMMC",
+                source_type=EntityType.Product.value,
+                target_entity="质量部",
+                target_type=EntityType.Department.value,
+                relation_type=RelationType.CERTIFIED_BY.value,
+                properties={"standard": "ISO 9001"},
+                source_chunk_id=2,
+            ),
         ]
         _, merged = EntityExtractor._merge_dedup([], relations)
         assert len(merged) == 1
@@ -263,14 +283,22 @@ class TestEntityDedup:
     def test_no_merge_different_relation_type(self):
         """同 source + target 但不同 relation_type 的关系不合并."""
         relations = [
-            Relation(source_entity="车规 eMMC", source_type=EntityType.Product.value,
-                     target_entity="质量部", target_type=EntityType.Department.value,
-                     relation_type=RelationType.CERTIFIED_BY.value,
-                     source_chunk_id=1),
-            Relation(source_entity="车规 eMMC", source_type=EntityType.Product.value,
-                     target_entity="质量部", target_type=EntityType.Department.value,
-                     relation_type=RelationType.BELONGS_TO.value,
-                     source_chunk_id=2),
+            Relation(
+                source_entity="车规 eMMC",
+                source_type=EntityType.Product.value,
+                target_entity="质量部",
+                target_type=EntityType.Department.value,
+                relation_type=RelationType.CERTIFIED_BY.value,
+                source_chunk_id=1,
+            ),
+            Relation(
+                source_entity="车规 eMMC",
+                source_type=EntityType.Product.value,
+                target_entity="质量部",
+                target_type=EntityType.Department.value,
+                relation_type=RelationType.BELONGS_TO.value,
+                source_chunk_id=2,
+            ),
         ]
         _, merged = EntityExtractor._merge_dedup([], relations)
         assert len(merged) == 2
@@ -278,26 +306,29 @@ class TestEntityDedup:
     def test_merge_mixed_entities_and_relations(self):
         """实体与关系混合去重: 互不干扰."""
         entities = [
-            Entity(name="车规 eMMC", type=EntityType.Product.value,
-                   source_chunk_id=1),
-            Entity(name="车规 eMMC", type=EntityType.Product.value,
-                   source_chunk_id=2),
-            Entity(name="质量部", type=EntityType.Department.value,
-                   source_chunk_id=1),
+            Entity(name="车规 eMMC", type=EntityType.Product.value, source_chunk_id=1),
+            Entity(name="车规 eMMC", type=EntityType.Product.value, source_chunk_id=2),
+            Entity(name="质量部", type=EntityType.Department.value, source_chunk_id=1),
         ]
         relations = [
-            Relation(source_entity="车规 eMMC", source_type=EntityType.Product.value,
-                     target_entity="质量部", target_type=EntityType.Department.value,
-                     relation_type=RelationType.CERTIFIED_BY.value,
-                     source_chunk_id=1),
-            Relation(source_entity="车规 eMMC", source_type=EntityType.Product.value,
-                     target_entity="质量部", target_type=EntityType.Department.value,
-                     relation_type=RelationType.CERTIFIED_BY.value,
-                     source_chunk_id=2),
+            Relation(
+                source_entity="车规 eMMC",
+                source_type=EntityType.Product.value,
+                target_entity="质量部",
+                target_type=EntityType.Department.value,
+                relation_type=RelationType.CERTIFIED_BY.value,
+                source_chunk_id=1,
+            ),
+            Relation(
+                source_entity="车规 eMMC",
+                source_type=EntityType.Product.value,
+                target_entity="质量部",
+                target_type=EntityType.Department.value,
+                relation_type=RelationType.CERTIFIED_BY.value,
+                source_chunk_id=2,
+            ),
         ]
-        merged_entities, merged_relations = EntityExtractor._merge_dedup(
-            entities, relations
-        )
+        merged_entities, merged_relations = EntityExtractor._merge_dedup(entities, relations)
         assert len(merged_entities) == 2  # 车规 eMMC + 质量部
         assert len(merged_relations) == 1
 
@@ -310,10 +341,12 @@ class TestEntityDedup:
     def test_none_source_chunk_id_preserved(self):
         """source_chunk_id 为 None 的实体合并后仍可为 None."""
         entities = [
-            Entity(name="车规 eMMC", type=EntityType.Product.value,
-                   properties={}, source_chunk_id=None),
-            Entity(name="车规 eMMC", type=EntityType.Product.value,
-                   properties={}, source_chunk_id=None),
+            Entity(
+                name="车规 eMMC", type=EntityType.Product.value, properties={}, source_chunk_id=None
+            ),
+            Entity(
+                name="车规 eMMC", type=EntityType.Product.value, properties={}, source_chunk_id=None
+            ),
         ]
         merged, _ = EntityExtractor._merge_dedup(entities, [])
         assert len(merged) == 1

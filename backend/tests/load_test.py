@@ -1,4 +1,4 @@
-﻿"""
+"""
 Locust 性能压测脚本 —— Enterprise RAG Knowledge Base
 
 仿照企业内部员工对 RAG 系统的典型访问行为:
@@ -20,6 +20,7 @@ Locust 性能压测脚本 —— Enterprise RAG Knowledge Base
 可通过环境变量覆盖默认账号:
     LOAD_TEST_EMAIL=admin@semitech.cn LOAD_TEST_PASSWORD=admin123 locust -f tests/load_test.py
 """
+
 from __future__ import annotations
 
 import os

@@ -10,6 +10,7 @@
 测试在离线模式 (LLM_PROVIDER=offline, REDIS_HOST=invalid) 下运行,
 全部依赖降级路径, 无需 Redis 与 LLM API.
 """
+
 from __future__ import annotations
 
 import pytest
