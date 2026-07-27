@@ -64,22 +64,25 @@ chunk ──► LLM(Prompt: 抽取实体+关系, 输出 JSON) ──► 实体�
 抽取 Prompt 约束 LLM 仅输出 Schema 内定义的实体与关系类型，并以结构化 JSON 返回，避免自由文本带来的解析负担。
 
 ```python
-EXTRACT_PROMPT = """你是一个信息抽取助手。从以下文档片段中抽取实体与关系，
-仅抽取以下类型：
-实体: Product(产品), Department(部门), Person(人员), Policy(制度)
-关系: BELONGS_TO(归属), PARTICIPATES(参与), CERTIFIES(认证), REFERENCES(引用), AUTHORED_BY(起草)
+EXTRACT_PROMPT = """你是企业知识图谱构建助手。从以下文档片段中抽取实体与关系。
+
+实体类型: Product(产品), Department(部门), Person(人员), Policy(制度),
+          Project(项目), Standard(标准), Supplier(供应商), Customer(客户)
+关系类型: BELONGS_TO(归属), PARTICIPATES(参与), CERTIFIED_BY(认证),
+          REFERENCES(引用), MANAGES(管理), SUPPLIES(供应),
+          COLLABORATES_WITH(协作), DEFINED_BY(定义)
 
 文档片段:
-{chunk}
+{content}
 
-以 JSON 输出，格式:
+输出 JSON 格式 (只输出 JSON, 不要 markdown):
 {{
-  "entities": [{{"type": "Product", "name": "...", "properties": {{...}}}}],
-  "relations": [{{"head": "产品A", "head_type": "Product",
-                  "relation": "BELONGS_TO",
-                  "tail": "研发部", "tail_type": "Department"}}]
+  "entities": [{{"name":"...","type":"Product|Department|...","properties":{{...}}}}],
+  "relations": [{{"source":"...","source_type":"Product",
+                  "target":"...","target_type":"Department",
+                  "relation":"CERTIFIED_BY"}}]
 }}
-仅输出 JSON，不要解释。"""
+"""
 ```
 
 ### 3.2 实体归一化与去重
@@ -235,7 +238,7 @@ class QueryRouter:
 
 ## 8. 效果对比
 
-在内部评测集上，按问题跳数分组对比三种检索策略。评测集按人工标注的关系跳数划分：单跳事实（320 题）、双跳关联（120 题）、三跳推理（60 题）。
+在种子评测集上，按问题跳数分组对比三种检索策略。种子评测集 32 条查询按人工标注的关系跳数划分：单跳事实（18 题）、双跳关联（9 题）、三跳推理（5 题）。生产环境可扩充评测集规模以获得更稳定统计。
 
 | 问题类型 | 向量 only | 图谱 only | 双路融合 | 融合相对向量提升 |
 |----------|-----------|-----------|----------|------------------|

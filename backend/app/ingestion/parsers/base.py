@@ -11,11 +11,12 @@
    ``SemanticChunker`` 沿标题层级切分，避免「固定窗口分块」割裂语义的问题。
 4. 解析失败统一抛出 ``ParserError``，便于 Celery 任务层捕获并标记文档状态。
 """
+
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
-from typing import Any, Optional
+from typing import Any
 
 
 class ParserError(Exception):
@@ -42,8 +43,8 @@ class TextBlock:
 
     text: str
     # 边界框 (x0, y0, x1, y1)，坐标系原点为页面左上角，单位随解析器而定
-    bbox: Optional[tuple[float, float, float, float]] = None
-    font_size: Optional[float] = None
+    bbox: tuple[float, float, float, float] | None = None
+    font_size: float | None = None
     bold: bool = False
     # 标题层级：0=正文, 1=H1, 2=H2, 3=H3；由解析器推断
     heading_level: int = 0
@@ -58,7 +59,7 @@ class TableBlock:
     """
 
     markdown: str
-    bbox: Optional[tuple[float, float, float, float]] = None
+    bbox: tuple[float, float, float, float] | None = None
     rows: int = 0
     cols: int = 0
 
@@ -71,11 +72,11 @@ class ImageBlock:
     填充 ``ocr_text``，使图片中的文字也能进入检索索引。
     """
 
-    bbox: Optional[tuple[float, float, float, float]] = None
+    bbox: tuple[float, float, float, float] | None = None
     # 图片落盘路径（若解析器选择导出图片）
-    image_path: Optional[str] = None
+    image_path: str | None = None
     # OCR 识别结果（若有）
-    ocr_text: Optional[str] = None
+    ocr_text: str | None = None
 
 
 # ---------------------------------------------------------------------------

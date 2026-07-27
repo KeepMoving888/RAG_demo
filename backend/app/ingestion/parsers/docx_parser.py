@@ -13,6 +13,7 @@
 4. 全部解析为单页 ``ParsedDocument``（DOCX 无原生分页概念），page_num 统一为 1，
    但保留元素顺序，分块器按内容流处理。
 """
+
 from __future__ import annotations
 
 import os
@@ -46,7 +47,9 @@ class DocxParser(BaseParser):
         """懒加载 unstructured 的 partition_docx。"""
         if self._partition is None:
             try:
-                from unstructured.partition.docx import partition_docx  # type: ignore[import-not-found]
+                from unstructured.partition.docx import (
+                    partition_docx,  # type: ignore[import-not-found]
+                )
             except ImportError as exc:
                 raise ParserError(
                     "unstructured 未安装，无法解析 DOCX，请执行 pip install unstructured"
@@ -147,6 +150,7 @@ class DocxParser(BaseParser):
             return ""
         rows = [re.split(r"\t|\s{2,}", ln) for ln in lines]
         from app.ingestion.parsers.pdf_parser import PDFParser
+
         return PDFParser._rows_to_markdown(rows)
 
     @staticmethod
@@ -162,4 +166,5 @@ class DocxParser(BaseParser):
         if not rows:
             return html
         from app.ingestion.parsers.pdf_parser import PDFParser
+
         return PDFParser._rows_to_markdown(rows)  # type: ignore[arg-type]

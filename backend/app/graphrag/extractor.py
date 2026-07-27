@@ -25,11 +25,7 @@ LLM 实体关系抽取器 (核心难点)
 
 import json
 import re
-from typing import Optional
 
-from app.llm import get_llm
-from app.metrics import GRAPH_ENTITIES_EXTRACTED
-from app.utils.logger import logger
 from app.graphrag.schemas import (
     Entity,
     EntityType,
@@ -37,7 +33,9 @@ from app.graphrag.schemas import (
     Relation,
     RelationType,
 )
-
+from app.llm import get_llm
+from app.metrics import GRAPH_ENTITIES_EXTRACTED
+from app.utils.logger import logger
 
 # ======================== Prompt 模板 ========================
 EXTRACT_PROMPT = """你是企业知识图谱构建助手。从以下文档片段中抽取实体与关系。
@@ -68,9 +66,7 @@ class EntityExtractor:
         self._llm = get_llm()
 
     # ======================== 单 chunk 抽取 ========================
-    async def extract_from_chunk(
-        self, chunk_id: int, content: str
-    ) -> ExtractionResult:
+    async def extract_from_chunk(self, chunk_id: int, content: str) -> ExtractionResult:
         """抽取单个文档分块的实体与关系
 
         Args:
@@ -98,11 +94,10 @@ class EntityExtractor:
         if entities:
             GRAPH_ENTITIES_EXTRACTED.inc(len(entities))
 
-        logger.debug("chunk_id={} 抽取完成: 实体 {} / 关系 {}",
-                     chunk_id, len(entities), len(relations))
-        return ExtractionResult(
-            entities=entities, relations=relations, raw_llm_response=raw_text
+        logger.debug(
+            "chunk_id={} 抽取完成: 实体 {} / 关系 {}", chunk_id, len(entities), len(relations)
         )
+        return ExtractionResult(entities=entities, relations=relations, raw_llm_response=raw_text)
 
     # ======================== 整文档抽取 ========================
     async def extract_from_document(self, document_id: int) -> ExtractionResult:
@@ -136,22 +131,21 @@ class EntityExtractor:
 
         for chunk in chunks:
             try:
-                entities, relations = await self._extract_from_text(
-                    chunk.id, chunk.content
-                )
+                entities, relations = await self._extract_from_text(chunk.id, chunk.content)
                 all_entities.extend(entities)
                 all_relations.extend(relations)
             except Exception as e:
                 logger.warning("chunk 抽取失败 chunk_id={}: {}", chunk.id, str(e))
 
         # 跨 chunk 去重合并
-        merged_entities, merged_relations = self._merge_dedup(
-            all_entities, all_relations
-        )
+        merged_entities, merged_relations = self._merge_dedup(all_entities, all_relations)
         logger.info(
             "文档抽取完成 document_id={} 合并前 {}/{} -> 合并后 {}/{}",
-            document_id, len(all_entities), len(all_relations),
-            len(merged_entities), len(merged_relations),
+            document_id,
+            len(all_entities),
+            len(all_relations),
+            len(merged_entities),
+            len(merged_relations),
         )
         return ExtractionResult(
             entities=merged_entities,
@@ -176,9 +170,7 @@ class EntityExtractor:
 
     # ======================== 内部: LLM 输出解析 ========================
     @staticmethod
-    def _parse_llm_output(
-        raw: dict, chunk_id: Optional[int]
-    ) -> tuple[list[Entity], list[Relation]]:
+    def _parse_llm_output(raw: dict, chunk_id: int | None) -> tuple[list[Entity], list[Relation]]:
         """将 LLM 返回的 JSON dict 解析为 Entity / Relation 列表
 
         校验: 类型必须命中白名单, 非法类型条目直接丢弃 (不抛异常, 容错).
@@ -194,10 +186,14 @@ class EntityExtractor:
             properties = item.get("properties") or {}
             if not isinstance(properties, dict):
                 properties = {}
-            entities.append(Entity(
-                name=name, type=etype, properties=properties,
-                source_chunk_id=chunk_id,
-            ))
+            entities.append(
+                Entity(
+                    name=name,
+                    type=etype,
+                    properties=properties,
+                    source_chunk_id=chunk_id,
+                )
+            )
 
         for item in raw.get("relations", []) or []:
             source = str(item.get("source", "")).strip()
@@ -205,28 +201,34 @@ class EntityExtractor:
             stype = str(item.get("source_type", "")).strip()
             ttype = str(item.get("target_type", "")).strip()
             rtype = str(item.get("relation", "")).strip()
-            if (not source or not target
-                    or stype not in _VALID_ENTITY_TYPES
-                    or ttype not in _VALID_ENTITY_TYPES
-                    or rtype not in _VALID_RELATION_TYPES):
+            if (
+                not source
+                or not target
+                or stype not in _VALID_ENTITY_TYPES
+                or ttype not in _VALID_ENTITY_TYPES
+                or rtype not in _VALID_RELATION_TYPES
+            ):
                 continue
             properties = item.get("properties") or {}
             if not isinstance(properties, dict):
                 properties = {}
-            relations.append(Relation(
-                source_entity=source, source_type=stype,
-                target_entity=target, target_type=ttype,
-                relation_type=rtype, properties=properties,
-                source_chunk_id=chunk_id,
-            ))
+            relations.append(
+                Relation(
+                    source_entity=source,
+                    source_type=stype,
+                    target_entity=target,
+                    target_type=ttype,
+                    relation_type=rtype,
+                    properties=properties,
+                    source_chunk_id=chunk_id,
+                )
+            )
 
         return entities, relations
 
     # ======================== 内部: 离线正则降级 ========================
     @staticmethod
-    def _offline_extract(
-        content: str, chunk_id: Optional[int]
-    ) -> tuple[list[Entity], list[Relation]]:
+    def _offline_extract(content: str, chunk_id: int | None) -> tuple[list[Entity], list[Relation]]:
         """离线正则抽取 (LLM 不可用时的降级方案)
 
         复用 app.llm.offline_llm.OfflineLLM._extract_entities 的正则模式:
@@ -240,25 +242,26 @@ class EntityExtractor:
         entities: list[Entity] = []
         seen_names: set[str] = set()
 
-        def _add(name: str, etype: str, props: Optional[dict] = None) -> None:
+        def _add(name: str, etype: str, props: dict | None = None) -> None:
             if name and name not in seen_names:
                 seen_names.add(name)
-                entities.append(Entity(
-                    name=name, type=etype, properties=props or {},
-                    source_chunk_id=chunk_id,
-                ))
+                entities.append(
+                    Entity(
+                        name=name,
+                        type=etype,
+                        properties=props or {},
+                        source_chunk_id=chunk_id,
+                    )
+                )
 
         # 产品名
         for m in re.finditer(r"\b([A-Z]{2,}-?[A-Z0-9]{2,})\b", content):
-            _add(m.group(1), EntityType.Product.value,
-                 {"matched_text": m.group(0)})
+            _add(m.group(1), EntityType.Product.value, {"matched_text": m.group(0)})
         # 部门名
         for m in re.finditer(r"([\u4e00-\u9fa5]{2,8}(?:部|处|中心|科|组))", content):
             _add(m.group(1), EntityType.Department.value)
         # 人名
-        for m in re.finditer(
-            r"([\u4e00-\u9fa5]{2,4})(?:工程师|经理|老师|主任|总监)", content
-        ):
+        for m in re.finditer(r"([\u4e00-\u9fa5]{2,4})(?:工程师|经理|老师|主任|总监)", content):
             _add(m.group(1), EntityType.Person.value)
         # 制度名
         for m in re.finditer(r"《([^》]{2,30})》", content):
@@ -284,7 +287,8 @@ class EntityExtractor:
             key = (e.name, e.type)
             if key not in entity_map:
                 entity_map[key] = Entity(
-                    name=e.name, type=e.type,
+                    name=e.name,
+                    type=e.type,
                     properties=dict(e.properties),
                     source_chunk_id=e.source_chunk_id,
                 )
@@ -303,9 +307,12 @@ class EntityExtractor:
             key = (r.source_entity, r.target_entity, r.relation_type)
             if key not in relation_map:
                 relation_map[key] = Relation(
-                    source_entity=r.source_entity, source_type=r.source_type,
-                    target_entity=r.target_entity, target_type=r.target_type,
-                    relation_type=r.relation_type, properties=dict(r.properties),
+                    source_entity=r.source_entity,
+                    source_type=r.source_type,
+                    target_entity=r.target_entity,
+                    target_type=r.target_type,
+                    relation_type=r.relation_type,
+                    properties=dict(r.properties),
                     source_chunk_id=r.source_chunk_id,
                 )
             else:
@@ -318,7 +325,7 @@ class EntityExtractor:
         return list(entity_map.values()), list(relation_map.values())
 
 
-def _union_chunk_id(a: Optional[int], b: Optional[int]) -> Optional[int]:
+def _union_chunk_id(a: int | None, b: int | None) -> int | None:
     """合并两个 source_chunk_id
 
     若两者均为 None 返回 None; 若其一为 None 返回另一个;

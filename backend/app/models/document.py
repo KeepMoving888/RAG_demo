@@ -11,12 +11,11 @@
 """
 
 from datetime import datetime
-from typing import Any
 
-from sqlalchemy import String, Integer, Float, ForeignKey, Index, Text, JSON
+from sqlalchemy import JSON, Float, ForeignKey, Index, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from app.models.base import Base, IDMixin, TimestampMixin, SoftDeleteMixin
+from app.models.base import Base, IDMixin, SoftDeleteMixin, TimestampMixin
 
 
 class Document(Base, IDMixin, TimestampMixin, SoftDeleteMixin):
@@ -37,17 +36,24 @@ class Document(Base, IDMixin, TimestampMixin, SoftDeleteMixin):
         String(16), nullable=False, comment="格式: pdf / docx / image / txt / md"
     )
     mime_type: Mapped[str] = mapped_column(String(64), nullable=False)
-    md5_hash: Mapped[str] = mapped_column(String(64), nullable=False, index=True, comment="文件 MD5, 去重用")
+    md5_hash: Mapped[str] = mapped_column(
+        String(64), nullable=False, index=True, comment="文件 MD5, 去重用"
+    )
     department_id: Mapped[int | None] = mapped_column(
-        ForeignKey("departments.id"), nullable=True,
+        ForeignKey("departments.id"),
+        nullable=True,
         comment="归属部门 (NULL = 全公司可见)",
     )
     category: Mapped[str] = mapped_column(
-        String(32), default="other", nullable=False,
+        String(32),
+        default="other",
+        nullable=False,
         comment="文档分类: product_manual / policy / faq / other",
     )
     status: Mapped[str] = mapped_column(
-        String(16), default="pending", nullable=False,
+        String(16),
+        default="pending",
+        nullable=False,
         comment="解析状态: pending / parsing / chunking / embedding / ready / failed",
     )
     page_count: Mapped[int | None] = mapped_column(Integer, nullable=True, comment="页数 (PDF)")
@@ -77,7 +83,8 @@ class DocumentChunk(Base, IDMixin, TimestampMixin):
         nullable=True, comment="冗余字段, 检索时直接过滤部门权限"
     )
     parent_chunk_id: Mapped[int | None] = mapped_column(
-        ForeignKey("document_chunks.id"), nullable=True,
+        ForeignKey("document_chunks.id"),
+        nullable=True,
         comment="父分块 ID (语义层级保留)",
     )
     chunk_index: Mapped[int] = mapped_column(Integer, nullable=False, comment="文档内序号")
@@ -85,7 +92,9 @@ class DocumentChunk(Base, IDMixin, TimestampMixin):
     token_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     char_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     heading_path: Mapped[str | None] = mapped_column(
-        String(512), nullable=True, comment="标题层级路径, 如 '第3章/3.2 安装/3.2.1 步骤'",
+        String(512),
+        nullable=True,
+        comment="标题层级路径, 如 '第3章/3.2 安装/3.2.1 步骤'",
     )
     page_number: Mapped[int | None] = mapped_column(Integer, nullable=True, comment="页码")
     metadata_: Mapped[dict | None] = mapped_column(
@@ -107,7 +116,9 @@ class ParseTask(Base, IDMixin, TimestampMixin):
     document_id: Mapped[int] = mapped_column(ForeignKey("documents.id"), nullable=False)
     celery_task_id: Mapped[str | None] = mapped_column(String(256), nullable=True)
     stage: Mapped[str] = mapped_column(
-        String(32), default="queued", nullable=False,
+        String(32),
+        default="queued",
+        nullable=False,
         comment="阶段: queued / parsing / chunking / embedding / done / failed",
     )
     progress: Mapped[float] = mapped_column(Float, default=0.0, nullable=False, comment="0.0-1.0")

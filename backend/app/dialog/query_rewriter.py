@@ -24,13 +24,15 @@ import re
 from app.config import settings
 from app.utils.logger import logger
 
-
 # 代词词典 (触发改写的信号词)
 _PRONOUNS = ("它", "他", "她", "这个", "那个", "这", "那", "其", "该", "上述", "前面提到")
 
 # 主语候选正则 (用于离线规则改写时从历史中抽取实体)
-_PRODUCT_RE = re.compile(r"\b([A-Z]{2,}-?[A-Z0-9]{2,})\b")
-_DEPT_RE = re.compile(r"([\u4e00-\u9fa5]{2,8}(?:部|处|中心|科|组))")
+# 产品代号: 匹配 eMMC / LPDDR4X / DDR4 / NAND / SSD 等混合大小写代号
+# 可选捕获前置中文修饰词 (如 "车规 eMMC" 中的 "车规")
+_PRODUCT_RE = re.compile(r"((?:[\u4e00-\u9fa5]{1,4}\s+)?[A-Za-z][A-Z0-9]{2,}[A-Za-z0-9]*)")
+# 部门名: 2-8 个汉字 + 部/处/中心/科/组, 用负向先行断言排除 "部署/部分/处理" 等常用词
+_DEPT_RE = re.compile(r"([\u4e00-\u9fa5]{2,8}(?:部(?!署|分)|处(?!理)|中心|科|组))")
 _PERSON_RE = re.compile(r"([\u4e00-\u9fa5]{2,4})(?:工程师|经理|老师|主任|总监)")
 _POLICY_RE = re.compile(r"《([^》]{2,30})》")
 

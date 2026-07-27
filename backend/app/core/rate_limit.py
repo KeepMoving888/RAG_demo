@@ -9,13 +9,11 @@
 """
 
 import time
-from typing import Optional
 
 from fastapi import HTTPException, Request, status
 
 from app.config import settings
 from app.utils.logger import logger
-
 
 # Lua 脚本: 原子取令牌 (避免竞态)
 _TOKEN_BUCKET_LUA = """
@@ -55,9 +53,8 @@ class RateLimiter:
         if cls._redis is None:
             try:
                 import redis.asyncio as aioredis
-                cls._redis = aioredis.from_url(
-                    settings.redis_url, decode_responses=True
-                )
+
+                cls._redis = aioredis.from_url(settings.redis_url, decode_responses=True)
             except Exception as e:
                 logger.warning("Redis 不可用, 限流降级放行: {}", str(e))
                 return None
@@ -67,8 +64,8 @@ class RateLimiter:
     async def acquire(
         cls,
         key: str,
-        capacity: Optional[int] = None,
-        refill_per_second: Optional[float] = None,
+        capacity: int | None = None,
+        refill_per_second: float | None = None,
     ) -> bool:
         """
         尝试获取令牌
@@ -106,7 +103,7 @@ class RateLimiter:
 
 async def rate_limit_dependency(
     request: Request,
-    endpoint: Optional[str] = None,
+    endpoint: str | None = None,
 ) -> None:
     """FastAPI 限流依赖"""
     from app.core.context import request_context
@@ -120,6 +117,7 @@ async def rate_limit_dependency(
     allowed = await RateLimiter.acquire(key)
     if not allowed:
         from app.metrics import record_rate_limit
+
         record_rate_limit(endpoint=endpoint, user_id=str(user_key))
         raise HTTPException(
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,

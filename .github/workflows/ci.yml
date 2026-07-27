@@ -25,7 +25,8 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: "3.11"
+          # 3.10: ruff.toml target-version=py310, 兼容本地开发
+          python-version: "3.10"
           cache: "pip"
           cache-dependency-path: backend/requirements.txt
 
@@ -36,10 +37,10 @@ jobs:
           pip install ruff
 
       - name: Lint with ruff
-        run: ruff check app tests
+        run: python -m ruff check app tests
 
       - name: Format check with ruff
-        run: ruff format --check app tests
+        run: python -m ruff format --check app tests
 
       - name: Run unit tests
         env:
@@ -47,10 +48,16 @@ jobs:
           LLM_PROVIDER: offline
           EMBEDDING_DEVICE: cpu
           POSTGRES_HOST: localhost
-          REDIS_HOST: localhost
-          MILVUS_HOST: localhost
-          NEO4J_HOST: localhost
-        run: pytest -v --cov=app --cov-report=term-missing --cov-report=xml
+          # 使用 invalid 主机名强制快速失败, 触发全链路降级 (BM25 only /
+          # Redis 不可用 / Neo4j 不可用), 避免连接超时拖慢 CI.
+          # conftest.py 用 setdefault 不会覆盖此处设置.
+          REDIS_HOST: invalid
+          MILVUS_HOST: invalid
+          NEO4J_HOST: invalid
+        # conftest.py 已配置 SQLite 内存库 + 全链路降级, 无需外部服务
+        # 覆盖率阈值 40%: .coveragerc 已 omit API/integration 层
+        # (需 TestClient + 真实服务, 由集成测试覆盖)
+        run: pytest -v --cov=app --cov-report=term-missing --cov-report=xml --cov-fail-under=40
 
       - name: Upload coverage
         if: github.event_name == 'push'
@@ -81,7 +88,6 @@ jobs:
 
       - name: Lint
         run: npm run lint
-        continue-on-error: true
 
       - name: Build
         run: npm run build

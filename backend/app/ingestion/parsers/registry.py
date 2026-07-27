@@ -10,9 +10,8 @@
    懒加载的引擎缓存，复用单例可命中缓存）。
 4. 对未知格式抛出 ``ParserError``，统一异常出口。
 """
-from __future__ import annotations
 
-from typing import Optional
+from __future__ import annotations
 
 from app.ingestion.parsers.base import BaseParser, ParserError
 from app.ingestion.parsers.docx_parser import DocxParser
@@ -98,7 +97,7 @@ class _PlainTextParser(BaseParser):
     供下游分块器按段落二次切分。
     """
 
-    async def parse(self, file_path: str) -> "ParsedDocument":  # type: ignore[name-defined]
+    async def parse(self, file_path: str) -> ParsedDocument:  # type: ignore[name-defined]
         import os
 
         from app.ingestion.parsers.base import (
@@ -111,7 +110,7 @@ class _PlainTextParser(BaseParser):
         if not os.path.exists(file_path):
             raise ParserError(f"文本文件不存在: {file_path}")
         try:
-            with open(file_path, "r", encoding="utf-8", errors="replace") as fh:
+            with open(file_path, encoding="utf-8", errors="replace") as fh:
                 content = fh.read()
         except OSError as exc:
             raise ParserError(f"读取文本文件失败: {file_path} ({exc})") from exc

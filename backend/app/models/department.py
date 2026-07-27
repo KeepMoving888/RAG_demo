@@ -9,10 +9,10 @@
 
 from datetime import datetime
 
-from sqlalchemy import String, Boolean, ForeignKey, Index, UniqueConstraint, DateTime
+from sqlalchemy import Boolean, DateTime, ForeignKey, Index, String, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from app.models.base import Base, IDMixin, TimestampMixin, SoftDeleteMixin
+from app.models.base import Base, IDMixin, SoftDeleteMixin, TimestampMixin
 
 
 class Department(Base, IDMixin, TimestampMixin, SoftDeleteMixin):
@@ -45,7 +45,9 @@ class User(Base, IDMixin, TimestampMixin, SoftDeleteMixin):
     )
 
     email: Mapped[str] = mapped_column(String(128), nullable=False, comment="邮箱 (登录名)")
-    hashed_password: Mapped[str] = mapped_column(String(256), nullable=False, comment="bcrypt 哈希密码")
+    hashed_password: Mapped[str] = mapped_column(
+        String(256), nullable=False, comment="bcrypt 哈希密码"
+    )
     name: Mapped[str] = mapped_column(String(64), nullable=False, comment="姓名")
     department_id: Mapped[int | None] = mapped_column(
         ForeignKey("departments.id"), nullable=True, comment="所属部门 (NULL 表示跨部门可见)"

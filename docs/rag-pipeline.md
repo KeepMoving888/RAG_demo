@@ -105,7 +105,7 @@ class Chunk:
 
 ### 4.2 分块效果对比
 
-在内部评测集（500 个标注问题，覆盖 3 个部门 1200 篇文档）上对比三种分块策略，固定其余检索链路：
+在种子评测集（32 条标注查询，覆盖 45 篇半导体存储种子文档）上对比三种分块策略，固定其余检索链路：
 
 | 分块策略 | 平均 chunk 长度 | chunk 总数 | Recall@5 | MRR | 说明 |
 |----------|-----------------|-----------|----------|-----|------|
@@ -130,32 +130,42 @@ class Chunk:
 向量化是 CPU/GPU 密集型操作，批量嵌入可显著提升吞吐。Worker 以 batch_size=32 调用嵌入服务。同一 chunk 内容若曾在 Redis 向量缓存中命中（key 为内容哈希），则跳过嵌入直接取用，避免重解析时重复计算。
 
 ```python
-class BGEEmbedder(BaseEmbedder):
+class BGEM3Embedder(BaseEmbedder):
+    """BAAI/bge-m3 嵌入器 (1024 维, 支持 GPU + FP16 + Redis 向量缓存).
+
+    实际实现见 backend/app/rag/embedder.py.
+    """
+
     DIMENSION = 1024
     BATCH_SIZE = 32
 
-    def __init__(self, model_name: str, cache: RedisVectorCache):
-        self.model = SentenceTransformer(model_name)
+    def __init__(self, model_name: str, device: str = "cpu",
+                 use_fp16: bool = False, cache: "RetrievalCache | None" = None):
+        self.model = SentenceTransformer(model_name, device=device)
         self.cache = cache
 
-    def embed_batch(self, chunks: list[Chunk]) -> list[list[float]]:
-        # 1. 先查缓存，命中则跳过
-        results: list[list[float] | None] = [None] * len(chunks)
+    async def embed_batch(self, texts: list[str]) -> list[list[float]]:
+        # 1. 先查 Redis 向量缓存 (key=内容哈希), 命中则跳过
+        results: list[list[float] | None] = [None] * len(texts)
         missed_idx = []
-        for i, c in enumerate(chunks):
-            cached = self.cache.get(c.content_hash)
-            if cached is not None:
-                results[i] = cached
-            else:
-                missed_idx.append(i)
-        # 2. 批量嵌入未命中部分
+        for i, t in enumerate(texts):
+            if self.cache is not None:
+                cached = await self.cache.get_vector(t)
+                if cached is not None:
+                    results[i] = cached
+                    continue
+            missed_idx.append(i)
+        # 2. 批量嵌入未命中部分 (GPU + FP16 吞吐约 2x)
         if missed_idx:
-            texts = [chunks[i].content for i in missed_idx]
-            vectors = self.model.encode(texts, batch_size=self.BATCH_SIZE,
-                                        normalize_embeddings=True)
+            missed_texts = [texts[i] for i in missed_idx]
+            vectors = self.model.encode(
+                missed_texts, batch_size=self.BATCH_SIZE,
+                normalize_embeddings=True,
+            )
             for i, vec in zip(missed_idx, vectors):
                 results[i] = vec.tolist()
-                self.cache.set(chunks[i].content_hash, vec.tolist(), ttl=86400)
+                if self.cache is not None:
+                    await self.cache.set_vector(texts[i], vec.tolist(), ttl=86400)
         return results  # type: ignore[return-value]
 ```
 
@@ -214,28 +224,42 @@ RRF 融合后的 Top-20 仍可能包含语义相关但与用户真实意图有�
 
 ```python
 class TerminologyExpander:
-    """业务术语扩展：同义词映射 + 检索阶段术语关键词加权。"""
+    """业务术语扩展：同义词 OR 注入 + 检索阶段术语关键词加权。
 
-    def __init__(self, dictionary: dict[str, list[str]]):
-        # {"RTO": ["恢复时间目标", "Recovery Time Objective"], ...}
-        self.dictionary = dictionary
+    实际实现见 backend/app/rag/terminology.py.
+    """
 
-    def expand(self, query: str) -> list[str]:
-        """返回扩展后的查询变体列表（含原查询）。"""
-        variants = [query]
-        for term, synonyms in self.dictionary.items():
+    def __init__(self, term_path: str | None = None):
+        # term_path 指向 terminology.json, 缺省走内置兜底词典
+        # 数据结构: {term: {"synonyms": [...], "type": "..."}}
+        self._terms: dict[str, dict] = {}
+
+    def expand_query(self, query: str) -> tuple[str, list[str]]:
+        """同义词 OR 注入到 query, 返回 (扩展后 query, 命中术语列表).
+
+        命中术语时, 同义词以 OR 追加到原 query 末尾,
+        使 BM25 能匹配代号命名的文档.
+        """
+        expanded = query
+        hits: list[str] = []
+        for term, meta in self._terms.items():
             if term in query:
-                for syn in synonyms:
-                    variants.append(query.replace(term, syn))
-        return variants
+                hits.append(term)
+                for syn in meta.get("synonyms", []):
+                    expanded += f" OR {syn}"
+        return expanded, hits
 
-    def boost_terms(self, query: str) -> dict[str, float]:
-        """返回术语词的加权 map，供 BM25 检索使用。"""
-        boosts = {}
-        for term in self.dictionary:
-            if term in query:
-                boosts[term] = 2.0
-        return boosts
+    def boost_term_weight(self, tokens: list[str],
+                          term_hits: list[str]) -> list[tuple[str, float]]:
+        """返回 (token, weight) 列表, 术语命中 token 权重 ×2.0.
+
+        供 BM25 检索阶段对术语词项加权使用.
+        """
+        result = []
+        for tok in tokens:
+            w = 2.0 if tok in term_hits else 1.0
+            result.append((tok, w))
+        return result
 ```
 
 术语词典由管理员通过后台维护，支持按部门配置不同词典子集（不同部门术语含义可能不同）。
@@ -261,7 +285,7 @@ class TerminologyExpander:
 
 ### 8.1 检索效果对比
 
-在内部评测集（500 题，K=5）上的实测结果：
+在种子评测集（32 题，K=5）上的实测结果：
 
 | 策略 | Recall@5 | MRR | NDCG@5 | Precision@5 | P95 延迟 |
 |------|----------|-----|--------|-------------|----------|

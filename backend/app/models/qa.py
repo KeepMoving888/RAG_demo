@@ -7,7 +7,7 @@
 3. Citation: 答案溯源 (answer_id + chunk_id + 引用片段)
 """
 
-from sqlalchemy import String, Integer, Float, ForeignKey, Index, Text, JSON
+from sqlalchemy import JSON, ForeignKey, Index, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import Base, IDMixin, TimestampMixin
@@ -56,7 +56,9 @@ class QAMessage(Base, IDMixin, TimestampMixin):
     )
     answer: Mapped[str | None] = mapped_column(Text, nullable=True, comment="模型回答")
     answer_source: Mapped[str] = mapped_column(
-        String(32), default="llm", nullable=False,
+        String(32),
+        default="llm",
+        nullable=False,
         comment="回答来源: llm / cache / fallback",
     )
     retrieved_chunks: Mapped[dict | None] = mapped_column(

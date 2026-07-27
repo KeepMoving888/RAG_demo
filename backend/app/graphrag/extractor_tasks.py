@@ -79,8 +79,11 @@ def extract_entities_task(document_id: int) -> dict:
 
         logger.info(
             "图谱抽取任务完成 document_id={} 实体={} 关系={} 入库={} 耗时={:.0f}ms",
-            document_id, len(extraction.entities), len(extraction.relations),
-            upsert_result, latency_ms,
+            document_id,
+            len(extraction.entities),
+            len(extraction.relations),
+            upsert_result,
+            latency_ms,
         )
         return {
             "entities_added": upsert_result.get("entities_added", 0),
@@ -92,7 +95,9 @@ def extract_entities_task(document_id: int) -> dict:
         record_graph_query(latency_ms, status="failed")
         logger.exception(
             "图谱抽取任务失败 document_id={} 耗时={:.0f}ms: {}",
-            document_id, latency_ms, str(e),
+            document_id,
+            latency_ms,
+            str(e),
         )
         # 抛出后由 Celery 进入失败状态 (重试已在 tenacity 内耗尽)
         raise

@@ -14,13 +14,14 @@
    保证向量库与图谱不残留失效数据.
 3. 解析: 上传 / 重试均调用 ``DocumentPipeline.submit / retry`` 异步入队, 立即返回 task_id.
 """
+
 from __future__ import annotations
 
 import hashlib
 import mimetypes
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 from fastapi import (
     APIRouter,
@@ -36,7 +37,6 @@ from pydantic import BaseModel
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.config import settings
 from app.core.context import request_context
 from app.core.rate_limit import rate_limit_dependency
 from app.core.security import get_current_user
@@ -45,7 +45,6 @@ from app.ingestion import DocumentPipeline
 from app.models import AuditLog, Document, DocumentChunk, User
 from app.schemas.common import (
     PaginatedResponse,
-    PaginationParams,
     SuccessResponse,
 )
 from app.utils.logger import logger
@@ -56,14 +55,27 @@ router = APIRouter()
 # 上传限制
 _MAX_FILE_SIZE = 100 * 1024 * 1024  # 100MB
 _ALLOWED_EXTENSIONS = {
-    "pdf", "docx", "doc", "txt", "md",
-    "png", "jpg", "jpeg", "tiff",
+    "pdf",
+    "docx",
+    "doc",
+    "txt",
+    "md",
+    "png",
+    "jpg",
+    "jpeg",
+    "tiff",
 }
 # 扩展名 -> file_format 映射
 _EXT_TO_FORMAT = {
-    "pdf": "pdf", "docx": "docx", "doc": "docx",
-    "txt": "txt", "md": "md",
-    "png": "image", "jpg": "image", "jpeg": "image", "tiff": "image",
+    "pdf": "pdf",
+    "docx": "docx",
+    "doc": "docx",
+    "txt": "txt",
+    "md": "md",
+    "png": "image",
+    "jpg": "image",
+    "jpeg": "image",
+    "tiff": "image",
 }
 # 上传根目录
 _UPLOAD_ROOT = Path("data/uploads")
@@ -72,6 +84,7 @@ _UPLOAD_ROOT = Path("data/uploads")
 # ======================== Schemas ========================
 class DocumentOut(BaseModel):
     """文档对外结构"""
+
     id: int
     title: str
     file_name: str
@@ -79,14 +92,14 @@ class DocumentOut(BaseModel):
     file_format: str
     mime_type: str
     md5_hash: str
-    department_id: Optional[int] = None
+    department_id: int | None = None
     category: str
     status: str
-    page_count: Optional[int] = None
+    page_count: int | None = None
     chunk_count: int = 0
-    error_message: Optional[str] = None
-    uploaded_by: Optional[int] = None
-    parsed_at: Optional[datetime] = None
+    error_message: str | None = None
+    uploaded_by: int | None = None
+    parsed_at: datetime | None = None
     created_at: datetime
 
     class Config:
@@ -95,6 +108,7 @@ class DocumentOut(BaseModel):
 
 class UploadResponse(BaseModel):
     """上传响应"""
+
     document_id: int
     task_id: str
     status: str
@@ -102,25 +116,27 @@ class UploadResponse(BaseModel):
 
 class DocumentStatusOut(BaseModel):
     """文档解析状态"""
+
     document_id: int
-    stage: Optional[str] = None
+    stage: str | None = None
     progress: float = 0.0
-    status: Optional[str] = None
+    status: str | None = None
     chunk_count: int = 0
-    error_message: Optional[str] = None
-    celery_task_id: Optional[str] = None
+    error_message: str | None = None
+    celery_task_id: str | None = None
 
 
 class ChunkOut(BaseModel):
     """分块对外结构"""
+
     id: int
     document_id: int
     chunk_index: int
     content: str
     token_count: int
     char_count: int
-    heading_path: Optional[str] = None
-    page_number: Optional[int] = None
+    heading_path: str | None = None
+    page_number: int | None = None
 
     class Config:
         from_attributes = True
@@ -128,6 +144,7 @@ class ChunkOut(BaseModel):
 
 class StatsOut(BaseModel):
     """统计结果 (按维度分组的字典)"""
+
     by_department: dict[str, int] = {}
     by_category: dict[str, int] = {}
     by_status: dict[str, int] = {}
@@ -177,20 +194,17 @@ def _build_visibility_filter(user: User):
         return Document.is_deleted == False  # noqa: E712
     return (
         Document.is_deleted == False  # noqa: E712
-    ) & (
-        (Document.department_id == user.department_id)
-        | (Document.department_id.is_(None))
-    )
+    ) & ((Document.department_id == user.department_id) | (Document.department_id.is_(None)))
 
 
 async def _write_audit(
     db: AsyncSession,
     action: str,
-    user_id: Optional[int],
+    user_id: int | None,
     status_: str = "success",
-    error: Optional[str] = None,
-    resource_id: Optional[str] = None,
-    detail: Optional[dict] = None,
+    error: str | None = None,
+    resource_id: str | None = None,
+    detail: dict | None = None,
 ) -> None:
     """写入审计日志 (失败不阻断主流程)."""
     try:
@@ -253,10 +267,10 @@ def _md5_stream(stream: UploadFile) -> tuple[bytes, str]:
 @router.get("", response_model=PaginatedResponse[DocumentOut])
 @router.get("/", response_model=PaginatedResponse[DocumentOut])
 async def list_documents(
-    department_id: Optional[int] = Query(None, description="按部门过滤"),
-    category: Optional[str] = Query(None, description="按分类过滤"),
-    doc_status: Optional[str] = Query(None, alias="status", description="按状态过滤"),
-    keyword: Optional[str] = Query(None, description="标题关键词"),
+    department_id: int | None = Query(None, description="按部门过滤"),
+    category: str | None = Query(None, description="按分类过滤"),
+    doc_status: str | None = Query(None, alias="status", description="按状态过滤"),
+    keyword: str | None = Query(None, description="标题关键词"),
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
     db: AsyncSession = Depends(get_db),
@@ -307,10 +321,8 @@ async def list_documents(
 async def upload_document(
     request: Request,
     file: UploadFile = File(..., description="待上传文件"),
-    title: Optional[str] = Query(None, description="文档标题, 缺省取文件名"),
-    department_id: Optional[int] = Query(
-        None, description="归属部门 ID, None 表示全公司可见"
-    ),
+    title: str | None = Query(None, description="文档标题, 缺省取文件名"),
+    department_id: int | None = Query(None, description="归属部门 ID, None 表示全公司可见"),
     category: str = Query("other", description="分类: product_manual/policy/faq/other"),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
@@ -348,21 +360,25 @@ async def upload_document(
     )
     existing = dup_result.scalar_one_or_none()
     if existing is not None:
-        logger.info(
-            "文件 MD5 重复, 跳过上传: md5={} doc_id={}", md5, existing.id
+        logger.info("文件 MD5 重复, 跳过上传: md5={} doc_id={}", md5, existing.id)
+        return SuccessResponse[UploadResponse](
+            data=UploadResponse(
+                document_id=existing.id,
+                task_id="",
+                status=existing.status,
+            )
         )
-        return SuccessResponse[UploadResponse](data=UploadResponse(
-            document_id=existing.id,
-            task_id="",
-            status=existing.status,
-        ))
 
     # 落盘
     save_path = _upload_path(file.filename or f"upload.{ext}")
     save_path.write_bytes(raw_bytes)
 
     file_format = _EXT_TO_FORMAT.get(ext, "other")
-    mime_type = file.content_type or mimetypes.guess_type(file.filename or "")[0] or "application/octet-stream"
+    mime_type = (
+        file.content_type
+        or mimetypes.guess_type(file.filename or "")[0]
+        or "application/octet-stream"
+    )
     doc_title = title or Path(file.filename or "untitled").stem
 
     doc = Document(
@@ -382,11 +398,16 @@ async def upload_document(
     await db.flush()
 
     await _write_audit(
-        db, "doc.upload", current_user.id, status_="success",
+        db,
+        "doc.upload",
+        current_user.id,
+        status_="success",
         resource_id=str(doc.id),
         detail={
-            "file_name": doc.file_name, "md5": md5,
-            "size": file_size, "category": category,
+            "file_name": doc.file_name,
+            "md5": md5,
+            "size": file_size,
+            "category": category,
             "department_id": department_id,
         },
     )
@@ -407,14 +428,19 @@ async def upload_document(
 
     logger.info(
         "文档上传成功: id={} title={} size={} task_id={}",
-        doc.id, doc.title, file_size, task_id,
+        doc.id,
+        doc.title,
+        file_size,
+        task_id,
     )
 
-    return SuccessResponse[UploadResponse](data=UploadResponse(
-        document_id=doc.id,
-        task_id=task_id,
-        status=doc.status,
-    ))
+    return SuccessResponse[UploadResponse](
+        data=UploadResponse(
+            document_id=doc.id,
+            task_id=task_id,
+            status=doc.status,
+        )
+    )
 
 
 @router.get("/stats/summary", response_model=SuccessResponse[StatsOut])
@@ -432,10 +458,7 @@ async def document_stats_summary(
         .group_by(Document.department_id)
     )
     dept_rows = (await db.execute(dept_stmt)).all()
-    by_department = {
-        str(row[0]) if row[0] is not None else "public": row[1]
-        for row in dept_rows
-    }
+    by_department = {str(row[0]) if row[0] is not None else "public": row[1] for row in dept_rows}
 
     # 按分类
     cat_stmt = (
@@ -457,12 +480,14 @@ async def document_stats_summary(
 
     total = sum(by_status.values())
 
-    return SuccessResponse[StatsOut](data=StatsOut(
-        by_department=by_department,
-        by_category=by_category,
-        by_status=by_status,
-        total=total,
-    ))
+    return SuccessResponse[StatsOut](
+        data=StatsOut(
+            by_department=by_department,
+            by_category=by_category,
+            by_status=by_status,
+            total=total,
+        )
+    )
 
 
 @router.get("/{document_id}/status", response_model=SuccessResponse[DocumentStatusOut])
@@ -544,8 +569,10 @@ async def get_document_chunks(
                 detail="无权查看该文档分块",
             )
 
-    count_stmt = select(func.count()).select_from(DocumentChunk).where(
-        DocumentChunk.document_id == document_id
+    count_stmt = (
+        select(func.count())
+        .select_from(DocumentChunk)
+        .where(DocumentChunk.document_id == document_id)
     )
     total = (await db.execute(count_stmt)).scalar_one()
 
@@ -602,7 +629,10 @@ async def retry_document(
         )
 
     await _write_audit(
-        db, "doc.retry", current_user.id, status_="success",
+        db,
+        "doc.retry",
+        current_user.id,
+        status_="success",
         resource_id=str(document_id),
         detail={"prev_status": doc.status},
     )
@@ -612,11 +642,13 @@ async def retry_document(
 
     logger.info("文档重试已提交: doc_id={} task_id={}", document_id, task_id)
 
-    return SuccessResponse[UploadResponse](data=UploadResponse(
-        document_id=document_id,
-        task_id=task_id,
-        status="processing",
-    ))
+    return SuccessResponse[UploadResponse](
+        data=UploadResponse(
+            document_id=document_id,
+            task_id=task_id,
+            status="processing",
+        )
+    )
 
 
 @router.delete("/{document_id}", response_model=SuccessResponse[dict])
@@ -685,21 +717,30 @@ async def delete_document(
         logger.warning("图谱清理失败 doc_id={}: {}", document_id, str(exc))
 
     await _write_audit(
-        db, "doc.delete", current_user.id, status_="success",
+        db,
+        "doc.delete",
+        current_user.id,
+        status_="success",
         resource_id=str(document_id),
         detail={
-            "title": doc.title, "cleanup": cleanup_detail,
+            "title": doc.title,
+            "cleanup": cleanup_detail,
             "by_admin": current_user.role == "admin",
         },
     )
 
     logger.info(
         "文档已删除: doc_id={} title={} by={} cleanup={}",
-        document_id, doc.title, current_user.id, cleanup_detail,
+        document_id,
+        doc.title,
+        current_user.id,
+        cleanup_detail,
     )
 
-    return SuccessResponse[dict](data={
-        "document_id": document_id,
-        "deleted": True,
-        "cleanup": cleanup_detail,
-    })
+    return SuccessResponse[dict](
+        data={
+            "document_id": document_id,
+            "deleted": True,
+            "cleanup": cleanup_detail,
+        }
+    )

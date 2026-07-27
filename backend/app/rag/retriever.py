@@ -38,7 +38,7 @@ from __future__ import annotations
 
 import asyncio
 import time
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from app.config import settings
 from app.utils.logger import logger
@@ -46,9 +46,11 @@ from app.utils.logger import logger
 try:
     from app.metrics import record_retrieval_stage
 except ImportError:  # pragma: no cover
+
     def record_retrieval_stage(stage: str, latency_ms: float) -> None:
         """metrics 不可用时的 no-op 降级。"""
         pass
+
 
 from app.rag.bm25_retriever import BM25Retriever
 from app.rag.cache import RetrievalCache, get_retrieval_cache
@@ -84,12 +86,12 @@ class HybridRetriever:
 
     def __init__(
         self,
-        vector_store: Optional[MilvusStore] = None,
-        bm25: Optional[BM25Retriever] = None,
-        reranker: Optional[CrossEncoderReranker] = None,
-        terminology: Optional[TerminologyExpander] = None,
-        embedder: Optional[BGEM3Embedder] = None,
-        cache: Optional[RetrievalCache] = None,
+        vector_store: MilvusStore | None = None,
+        bm25: BM25Retriever | None = None,
+        reranker: CrossEncoderReranker | None = None,
+        terminology: TerminologyExpander | None = None,
+        embedder: BGEM3Embedder | None = None,
+        cache: RetrievalCache | None = None,
     ) -> None:
         self._vector_store: MilvusStore = vector_store or milvus_store
         self._bm25: BM25Retriever = bm25 or BM25Retriever()
@@ -110,12 +112,12 @@ class HybridRetriever:
     async def retrieve(
         self,
         query: str,
-        department_id: Optional[int],
+        department_id: int | None,
         top_k: int = 5,
         recall_k: int = 50,
         enable_rerank: bool = True,
         enable_graph: bool = False,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """混合检索主方法。
 
         Parameters
@@ -155,16 +157,12 @@ class HybridRetriever:
         # 生成术语词项权重
         query_tokens = self._tokenizer.tokenize(expanded_query)
         weighted_tokens = self._terminology.boost_term_weight(query_tokens, term_hits)
-        term_weights = {
-            tok: w for tok, w in weighted_tokens if w > 1.0
-        }
+        term_weights = {tok: w for tok, w in weighted_tokens if w > 1.0}
 
-        stages_latency: Dict[str, float] = {}
+        stages_latency: dict[str, float] = {}
 
         # ---- Step 3: Stage 1 双路召回（并行）----
-        vector_task = self._vector_recall(
-            expanded_query, department_id, recall_k
-        )
+        vector_task = self._vector_recall(expanded_query, department_id, recall_k)
         bm25_task = asyncio.to_thread(
             self._bm25_recall,
             expanded_query,
@@ -194,9 +192,7 @@ class HybridRetriever:
         # ---- Step 4: RRF 融合 ----
         t0 = time.monotonic()
         ranked_lists = [vector_results, bm25_results]
-        fused = reciprocal_rank_fusion(
-            ranked_lists, k=self._rrf_k, key_field="content"
-        )
+        fused = reciprocal_rank_fusion(ranked_lists, k=self._rrf_k, key_field="content")
         stages_latency["rrf_ms"] = round((time.monotonic() - t0) * 1000, 2)
         record_retrieval_stage("rrf_fusion", stages_latency["rrf_ms"])
 
@@ -221,7 +217,7 @@ class HybridRetriever:
         chunks = self._format_chunks(ranked)
         scores = [c["score"] for c in chunks]
 
-        result: Dict[str, Any] = {
+        result: dict[str, Any] = {
             "chunks": chunks,
             "scores": scores,
             "latency_ms": total_ms,
@@ -263,9 +259,9 @@ class HybridRetriever:
     async def _vector_recall(
         self,
         query: str,
-        department_id: Optional[int],
+        department_id: int | None,
         recall_k: int,
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """向量召回：BGE-M3 encode + Milvus 分区 search。"""
         if not self._vector_store.is_available:
             logger.debug("Milvus 不可用，向量召回返回空")
@@ -285,10 +281,10 @@ class HybridRetriever:
     def _bm25_recall(
         self,
         query: str,
-        department_id: Optional[int],
+        department_id: int | None,
         recall_k: int,
-        term_weights: Dict[str, float],
-    ) -> List[Dict[str, Any]]:
+        term_weights: dict[str, float],
+    ) -> list[dict[str, Any]]:
         """BM25 召回（术语加权 + 部门过滤）。
 
         BM25 无 partition 概念，权限隔离在应用层按 department_id 过滤。
@@ -305,22 +301,22 @@ class HybridRetriever:
         # 应用层权限过滤：只保留 _public(0) 或本部门的 chunk
         if department_id is not None:
             results = [
-                r for r in results
-                if r.get("department_id") == 0
-                or r.get("department_id") == department_id
+                r
+                for r in results
+                if r.get("department_id") == 0 or r.get("department_id") == department_id
             ]
         return results
 
     # ------------------------------------------------------------------
     # 结果格式化
     # ------------------------------------------------------------------
-    def _format_chunks(self, ranked: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    def _format_chunks(self, ranked: list[dict[str, Any]]) -> list[dict[str, Any]]:
         """格式化为统一 chunk 输出结构。
 
         确保每个 chunk 含契约要求的字段：id, content, score, source,
         heading_path, page_number, document_id, department_id。
         """
-        chunks: List[Dict[str, Any]] = []
+        chunks: list[dict[str, Any]] = []
         for doc in ranked:
             chunk = {
                 "id": doc.get("chunk_id") or doc.get("id", ""),
@@ -344,7 +340,7 @@ class HybridRetriever:
         query: str,
         top_k: int = 5,
         strategy: str = "full",
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """同步版检索（供评估脚本用，不依赖 Milvus / CrossEncoder）。
 
         评估脚本在离线环境运行，无 Milvus 与 GPU，本方法只用 BM25 + RRF
@@ -367,12 +363,17 @@ class HybridRetriever:
             与 ``retrieve`` 相同结构。
         """
         total_start = time.monotonic()
-        stages_latency: Dict[str, float] = {"vector_ms": 0.0, "bm25_ms": 0.0, "rrf_ms": 0.0, "rerank_ms": 0.0}
+        stages_latency: dict[str, float] = {
+            "vector_ms": 0.0,
+            "bm25_ms": 0.0,
+            "rrf_ms": 0.0,
+            "rerank_ms": 0.0,
+        }
 
         # 术语扩展（仅 full_with_terminology 启用）
-        term_hits: List[str] = []
+        term_hits: list[str] = []
         expanded_query = query
-        term_weights: Dict[str, float] = {}
+        term_weights: dict[str, float] = {}
         if strategy in ("full", "full_with_terminology"):
             expanded_query, term_hits = self._terminology.expand_query(query)
             query_tokens = self._tokenizer.tokenize(expanded_query)
@@ -381,16 +382,22 @@ class HybridRetriever:
 
         t0 = time.monotonic()
         # 离线模式下 vector 用 BM25 近似复现
-        vector_results = self._bm25.search(
-            query=expanded_query,
-            top_k=50,
-            term_weights=term_weights if term_weights else None,
-        ) if strategy != "bm25_only" else []
+        vector_results = (
+            self._bm25.search(
+                query=expanded_query,
+                top_k=50,
+                term_weights=term_weights if term_weights else None,
+            )
+            if strategy != "bm25_only"
+            else []
+        )
         stages_latency["vector_ms"] = round((time.monotonic() - t0) * 1000, 2)
 
         t0 = time.monotonic()
         bm25_results = (
-            self._bm25.search(query=expanded_query, top_k=50, term_weights=term_weights if term_weights else None)
+            self._bm25.search(
+                query=expanded_query, top_k=50, term_weights=term_weights if term_weights else None
+            )
             if strategy in ("bm25_only", "rrf", "full", "full_with_terminology")
             else []
         )
@@ -399,9 +406,7 @@ class HybridRetriever:
         # 融合
         t0 = time.monotonic()
         if strategy in ("rrf", "full", "full_with_terminology"):
-            fused = reciprocal_rank_fusion(
-                [vector_results, bm25_results], k=self._rrf_k
-            )
+            fused = reciprocal_rank_fusion([vector_results, bm25_results], k=self._rrf_k)
         elif strategy == "vector_only":
             fused = vector_results
         elif strategy == "bm25_only":
@@ -441,7 +446,7 @@ class HybridRetriever:
     # ------------------------------------------------------------------
     # 可解释性
     # ------------------------------------------------------------------
-    def explain_retrieval(self, query: str, chunk_id: str) -> Dict[str, Any]:
+    def explain_retrieval(self, query: str, chunk_id: str) -> dict[str, Any]:
         """解释某 chunk 为何被召回 / 排名如何。
 
         Parameters
@@ -460,7 +465,7 @@ class HybridRetriever:
         expanded_query, term_hits = self._terminology.expand_query(query)
 
         # BM25 解释：找到 chunk 在语料中的索引
-        bm25_explain: Dict[str, Any] = {"available": False}
+        bm25_explain: dict[str, Any] = {"available": False}
         if self._bm25.is_ready:
             for idx, doc in enumerate(self._bm25._corpus):
                 if str(doc.get("chunk_id", "")) == str(chunk_id):
@@ -481,7 +486,7 @@ class HybridRetriever:
     # ------------------------------------------------------------------
     # 索引管理（供 ingestion 调用）
     # ------------------------------------------------------------------
-    def build_bm25_index(self, documents: List[Dict[str, Any]]) -> int:
+    def build_bm25_index(self, documents: list[dict[str, Any]]) -> int:
         """构建 BM25 索引（供 ingestion 流程调用）。"""
         return self._bm25.build_index(documents)
 

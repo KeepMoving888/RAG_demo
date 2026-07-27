@@ -25,7 +25,7 @@
 import hashlib
 import json
 import time
-from typing import Any, Optional
+from typing import Any
 
 from app.config import settings
 from app.metrics import record_qa_cache
@@ -48,9 +48,9 @@ class QACache:
     """
 
     KEY_PREFIX = "qa:"
-    LRU_KEY = "qa:cache:lru"            # ZSET: member=cache_key, score=访问时间戳
-    STATS_KEY = "qa:cache:stats"        # Hash: hits / misses 计数
-    CHUNKIDX_PREFIX = "qa:chunkidx:"    # SET: 引用过某 chunk 的缓存 key 集合
+    LRU_KEY = "qa:cache:lru"  # ZSET: member=cache_key, score=访问时间戳
+    STATS_KEY = "qa:cache:stats"  # Hash: hits / misses 计数
+    CHUNKIDX_PREFIX = "qa:chunkidx:"  # SET: 引用过某 chunk 的缓存 key 集合
 
     _redis: Any = None
     _redis_broken: bool = False
@@ -81,16 +81,14 @@ class QACache:
                 return None
         return cls._redis
 
-    def _cache_key(self, rewritten_query: str, department_id: Optional[int]) -> str:
+    def _cache_key(self, rewritten_query: str, department_id: int | None) -> str:
         """生成缓存 key: md5(rewritten_query|department_id)."""
         raw = f"{rewritten_query}|{department_id if department_id is not None else ''}"
         digest = hashlib.md5(raw.encode("utf-8")).hexdigest()
         return f"{self.KEY_PREFIX}{digest}"
 
     # ======================== 读取 ========================
-    async def get(
-        self, rewritten_query: str, department_id: Optional[int]
-    ) -> Optional[dict]:
+    async def get(self, rewritten_query: str, department_id: int | None) -> dict | None:
         """
         查询缓存.
 
@@ -131,7 +129,7 @@ class QACache:
     async def set(
         self,
         rewritten_query: str,
-        department_id: Optional[int],
+        department_id: int | None,
         answer: str,
         citations: list[dict],
         retrieved_chunk_ids: list[str],
@@ -215,9 +213,7 @@ class QACache:
             pipe.delete(idx_key)
             await pipe.execute()
 
-            logger.info(
-                "QA 缓存按 chunk 失效: chunk_id={} count={}", chunk_id, len(cache_keys)
-            )
+            logger.info("QA 缓存按 chunk 失效: chunk_id={} count={}", chunk_id, len(cache_keys))
             return len(cache_keys)
         except Exception as e:
             logger.warning("QA 缓存 chunk 失效失败: {}", str(e))
@@ -268,7 +264,9 @@ class QACache:
         citations_raw = raw.get("citations", "[]")
         chunks_raw = raw.get("retrieved_chunk_ids", "[]")
         try:
-            citations = json.loads(citations_raw) if isinstance(citations_raw, str) else citations_raw
+            citations = (
+                json.loads(citations_raw) if isinstance(citations_raw, str) else citations_raw
+            )
         except (json.JSONDecodeError, TypeError):
             citations = []
         try:

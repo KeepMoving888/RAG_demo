@@ -40,11 +40,9 @@ Schema 设计:
     (向量检索 + BM25) 不受图谱故障影响, 实现 GraphRAG 与主检索解耦.
 """
 
-import time
-from typing import Any, Optional
+from typing import Any
 
 from app.config import settings
-from app.utils.logger import logger
 from app.graphrag.schemas import (
     Entity,
     EntityType,
@@ -52,7 +50,7 @@ from app.graphrag.schemas import (
     Relation,
     RelationType,
 )
-
+from app.utils.logger import logger
 
 # 延迟导入 neo4j 驱动: 若运行环境未安装 neo4j 包, 模块仍可加载,
 # 图谱功能整体降级为不可用, 不影响其余子系统启动.
@@ -76,9 +74,9 @@ class Neo4jStore:
 
     def __init__(
         self,
-        uri: Optional[str] = None,
-        user: Optional[str] = None,
-        password: Optional[str] = None,
+        uri: str | None = None,
+        user: str | None = None,
+        password: str | None = None,
     ) -> None:
         self._uri = uri or settings.neo4j_uri
         self._user = user or settings.neo4j_user
@@ -102,9 +100,7 @@ class Neo4jStore:
             self._available = False
             return False
         try:
-            self._driver = AsyncGraphDatabase.driver(
-                self._uri, auth=(self._user, self._password)
-            )
+            self._driver = AsyncGraphDatabase.driver(self._uri, auth=(self._user, self._password))
             await self._driver.verify_connectivity()
             self._available = True
             logger.info("Neo4j 连接成功: {}", self._uri)
@@ -140,8 +136,7 @@ class Neo4jStore:
         ]
         # type 属性索引 (按类型过滤/统计加速)
         index_stmts = [
-            f"CREATE INDEX {et.value.lower()}_type_idx IF NOT EXISTS "
-            f"FOR (n:{et.value}) ON (n.type)"
+            f"CREATE INDEX {et.value.lower()}_type_idx IF NOT EXISTS FOR (n:{et.value}) ON (n.type)"
             for et in EntityType
         ]
 
@@ -151,8 +146,11 @@ class Neo4jStore:
                     await session.run(stmt)
                 except Exception as e:  # 单条失败不阻断其余 schema 创建
                     logger.warning("Schema 语句执行失败 [{}]: {}", stmt, str(e))
-        logger.info("Neo4j Schema 初始化完成 (约束 {} 条 / 索引 {} 条)",
-                    len(constraint_stmts), len(index_stmts))
+        logger.info(
+            "Neo4j Schema 初始化完成 (约束 {} 条 / 索引 {} 条)",
+            len(constraint_stmts),
+            len(index_stmts),
+        )
 
     # ======================== 写入 ========================
     @staticmethod
@@ -200,15 +198,9 @@ class Neo4jStore:
         """幂等写入关系 (两端节点必须已存在), 返回关系 element_id"""
         if not await self._ensure_driver():
             return ""
-        src_label = self._validate_label(
-            relation.source_type, {e.value for e in EntityType}
-        )
-        tgt_label = self._validate_label(
-            relation.target_type, {e.value for e in EntityType}
-        )
-        rel_type = self._validate_label(
-            relation.relation_type, {r.value for r in RelationType}
-        )
+        src_label = self._validate_label(relation.source_type, {e.value for e in EntityType})
+        tgt_label = self._validate_label(relation.target_type, {e.value for e in EntityType})
+        rel_type = self._validate_label(relation.relation_type, {r.value for r in RelationType})
         source_chunks = [relation.source_chunk_id] if relation.source_chunk_id else []
 
         cypher = (
@@ -240,8 +232,11 @@ class Neo4jStore:
             {"entities_added": int, "relations_added": int}
         """
         if not await self._ensure_driver():
-            logger.warning("Neo4j 不可用, batch_upsert 跳过 ({} 实体 / {} 关系)",
-                           len(extraction.entities), len(extraction.relations))
+            logger.warning(
+                "Neo4j 不可用, batch_upsert 跳过 ({} 实体 / {} 关系)",
+                len(extraction.entities),
+                len(extraction.relations),
+            )
             return {"entities_added": 0, "relations_added": 0}
 
         entities_added = 0
@@ -259,10 +254,10 @@ class Neo4jStore:
                     await self._upsert_relation_in_session(session, rel)
                     relations_added += 1
                 except Exception as e:
-                    logger.warning("关系入库失败 [{}->{}]: {}",
-                                   rel.source_entity, rel.target_entity, str(e))
-        logger.info("batch_upsert 完成: 实体 {} / 关系 {}",
-                    entities_added, relations_added)
+                    logger.warning(
+                        "关系入库失败 [{}->{}]: {}", rel.source_entity, rel.target_entity, str(e)
+                    )
+        logger.info("batch_upsert 完成: 实体 {} / 关系 {}", entities_added, relations_added)
         return {"entities_added": entities_added, "relations_added": relations_added}
 
     async def _upsert_entity_in_session(self, session, entity: Entity) -> None:
@@ -277,24 +272,21 @@ class Neo4jStore:
             "[x IN n.source_chunks WHERE NOT x IN $source_chunks] + $source_chunks "
             "SET n += $properties"
         )
-        await session.run(cypher, parameters={
-            "name": entity.name,
-            "type": entity.type,
-            "source_chunks": source_chunks,
-            "properties": entity.properties or {},
-        })
+        await session.run(
+            cypher,
+            parameters={
+                "name": entity.name,
+                "type": entity.type,
+                "source_chunks": source_chunks,
+                "properties": entity.properties or {},
+            },
+        )
 
     async def _upsert_relation_in_session(self, session, relation: Relation) -> None:
         """在已有 session 内写入关系"""
-        src_label = self._validate_label(
-            relation.source_type, {e.value for e in EntityType}
-        )
-        tgt_label = self._validate_label(
-            relation.target_type, {e.value for e in EntityType}
-        )
-        rel_type = self._validate_label(
-            relation.relation_type, {r.value for r in RelationType}
-        )
+        src_label = self._validate_label(relation.source_type, {e.value for e in EntityType})
+        tgt_label = self._validate_label(relation.target_type, {e.value for e in EntityType})
+        rel_type = self._validate_label(relation.relation_type, {r.value for r in RelationType})
         source_chunks = [relation.source_chunk_id] if relation.source_chunk_id else []
         cypher = (
             f"MATCH (a:{src_label} {{name: $source}}) "
@@ -304,11 +296,14 @@ class Neo4jStore:
             "ON MATCH SET r.source_chunks = "
             "[x IN r.source_chunks WHERE NOT x IN $source_chunks] + $source_chunks"
         )
-        await session.run(cypher, parameters={
-            "source": relation.source_entity,
-            "target": relation.target_entity,
-            "source_chunks": source_chunks,
-        })
+        await session.run(
+            cypher,
+            parameters={
+                "source": relation.source_entity,
+                "target": relation.target_entity,
+                "source_chunks": source_chunks,
+            },
+        )
 
     # ======================== 读取 ========================
     @staticmethod
@@ -345,9 +340,7 @@ class Neo4jStore:
             }
         return value
 
-    async def run_cypher(
-        self, cypher: str, params: Optional[dict] = None
-    ) -> list[dict]:
+    async def run_cypher(self, cypher: str, params: dict | None = None) -> list[dict]:
         """执行只读 Cypher, 返回序列化后的记录列表
 
         注意: 本方法不做安全校验 (校验职责在 cypher_chain.validate_cypher),
@@ -359,26 +352,20 @@ class Neo4jStore:
             async with self._driver.session() as session:
                 result = await session.run(cypher, parameters=params or {})
                 records = [
-                    {k: self._serialize(v) for k, v in record.items()}
-                    async for record in result
+                    {k: self._serialize(v) for k, v in record.items()} async for record in result
                 ]
             return records
         except Exception as e:
             logger.warning("Cypher 执行失败: {} | cypher={}", str(e), cypher[:200])
             return []
 
-    async def get_entity(
-        self, name: str, entity_type: Optional[str] = None
-    ) -> Optional[dict]:
+    async def get_entity(self, name: str, entity_type: str | None = None) -> dict | None:
         """按名称 (可选类型) 查询单个实体"""
         if not await self._ensure_driver():
             return None
         if entity_type:
             self._validate_label(entity_type, {e.value for e in EntityType})
-            cypher = (
-                f"MATCH (n:{entity_type} {{name: $name}}) "
-                "RETURN n LIMIT 1"
-            )
+            cypher = f"MATCH (n:{entity_type} {{name: $name}}) RETURN n LIMIT 1"
         else:
             cypher = "MATCH (n {name: $name}) RETURN n LIMIT 1"
         records = await self.run_cypher(cypher, {"name": name})
@@ -401,9 +388,7 @@ class Neo4jStore:
         )
         return await self.run_cypher(cypher, {"name": name})
 
-    async def find_paths(
-        self, source_name: str, target_name: str, max_hops: int = 3
-    ) -> list[dict]:
+    async def find_paths(self, source_name: str, target_name: str, max_hops: int = 3) -> list[dict]:
         """最短路径查找 (实体关系链路可解释性)
 
         返回 Path 序列化结果, 用于回答「A 与 B 之间是什么关系」.
@@ -416,9 +401,7 @@ class Neo4jStore:
             f"(a {{name: $source}})-[*..{max_hops}]-(b {{name: $target}})) "
             "RETURN p LIMIT 5"
         )
-        return await self.run_cypher(
-            cypher, {"source": source_name, "target": target_name}
-        )
+        return await self.run_cypher(cypher, {"source": source_name, "target": target_name})
 
     async def delete_by_source_chunk(self, chunk_id: int) -> None:
         """按来源 chunk 清理图数据 (文档更新/删除时调用)
@@ -441,8 +424,7 @@ class Neo4jStore:
                     parameters={"chunk_id": chunk_id},
                 )
                 await session.run(
-                    "MATCH (n) WHERE n.source_chunks = [] "
-                    "DETACH DELETE n",
+                    "MATCH (n) WHERE n.source_chunks = [] DETACH DELETE n",
                     parameters={},
                 )
             except Exception as e:
@@ -468,12 +450,9 @@ class Neo4jStore:
         if not await self._ensure_driver():
             return {"available": False, "nodes": 0, "relationships": 0, "by_label": {}}
         node_count = await self.run_cypher("MATCH (n) RETURN count(n) AS c LIMIT 1")
-        rel_count = await self.run_cypher(
-            "MATCH ()-[r]->() RETURN count(r) AS c LIMIT 1"
-        )
+        rel_count = await self.run_cypher("MATCH ()-[r]->() RETURN count(r) AS c LIMIT 1")
         by_label = await self.run_cypher(
-            "MATCH (n) UNWIND labels(n) AS lbl "
-            "RETURN lbl, count(*) AS c ORDER BY c DESC LIMIT 50"
+            "MATCH (n) UNWIND labels(n) AS lbl RETURN lbl, count(*) AS c ORDER BY c DESC LIMIT 50"
         )
         return {
             "available": True,

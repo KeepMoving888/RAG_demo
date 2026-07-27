@@ -23,14 +23,15 @@
 说明：``parent_chunk_id`` 在分块阶段为返回列表中的本地索引（从 0 起），
 持久化时由任务层映射为数据库 DocumentChunk.id。
 """
+
 from __future__ import annotations
 
 import re
 from dataclasses import dataclass, field
-from typing import Any, Optional
+from typing import Any
 
 from app.config import settings
-from app.ingestion.parsers.base import ParsedDocument, TableBlock
+from app.ingestion.parsers.base import ParsedDocument
 from app.utils.logger import logger
 
 # CJK 字符正则：用于 token 估算与中文断行修复
@@ -55,7 +56,7 @@ class Chunk:
     content: str
     heading_path: str = ""
     page_number: int = 0
-    parent_chunk_id: Optional[int] = None
+    parent_chunk_id: int | None = None
     chunk_index: int = 0
     token_count: int = 0
     char_count: int = 0
@@ -129,7 +130,7 @@ class SemanticChunker:
         body_buffer: list[str] = []
         body_page = 0
         # 当前生效标题的概要块本地索引
-        current_summary_idx: Optional[int] = None
+        current_summary_idx: int | None = None
 
         def _flush_body() -> None:
             nonlocal body_buffer, body_page, current_summary_idx
@@ -305,7 +306,7 @@ class SemanticChunker:
         合并仅发生在相邻正文块之间，避免跨标题拼接造成语义错乱。
         """
         result: list[Chunk] = []
-        buffer: Optional[Chunk] = None
+        buffer: Chunk | None = None
 
         for chunk in chunks:
             is_mergeable = not (chunk.metadata.get("is_summary") or chunk.metadata.get("is_table"))

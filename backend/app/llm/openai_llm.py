@@ -11,14 +11,14 @@ OpenAI 兼容 LLM (支持 OpenAI / DeepSeek / 任意 OpenAI 协议服务)
 
 import json
 import time
-from typing import AsyncIterator, Optional
+from collections.abc import AsyncIterator
 
 import httpx
 from tenacity import (
     retry,
+    retry_if_exception_type,
     stop_after_attempt,
     wait_exponential,
-    retry_if_exception_type,
 )
 
 from app.llm.base import BaseLLM, LLMResponse
@@ -43,7 +43,7 @@ class OpenAICompatibleLLM(BaseLLM):
         self.api_key = api_key
         self.base_url = base_url.rstrip("/")
         self.timeout = timeout
-        self._client: Optional[httpx.AsyncClient] = None
+        self._client: httpx.AsyncClient | None = None
 
     async def _get_client(self) -> httpx.AsyncClient:
         if self._client is None or self._client.is_closed:
@@ -62,9 +62,9 @@ class OpenAICompatibleLLM(BaseLLM):
     async def agenerate(
         self,
         messages: list[dict],
-        temperature: Optional[float] = None,
-        max_tokens: Optional[int] = None,
-        response_format: Optional[dict] = None,
+        temperature: float | None = None,
+        max_tokens: int | None = None,
+        response_format: dict | None = None,
     ) -> LLMResponse:
         client = await self._get_client()
         start = time.time()
@@ -102,8 +102,8 @@ class OpenAICompatibleLLM(BaseLLM):
     async def agenerate_stream(
         self,
         messages: list[dict],
-        temperature: Optional[float] = None,
-        max_tokens: Optional[int] = None,
+        temperature: float | None = None,
+        max_tokens: int | None = None,
     ) -> AsyncIterator[str]:
         client = await self._get_client()
         payload = {
@@ -119,7 +119,7 @@ class OpenAICompatibleLLM(BaseLLM):
             async for line in resp.aiter_lines():
                 if not line or not line.startswith("data: "):
                     continue
-                data_str = line[len("data: "):]
+                data_str = line[len("data: ") :]
                 if data_str.strip() == "[DONE]":
                     break
                 try:

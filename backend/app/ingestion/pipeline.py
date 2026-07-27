@@ -11,9 +11,10 @@
 4. **失败重试**：``retry`` 重置状态后重新投递任务；``cancel`` 调用 Celery
    revoke 撤销尚未执行的 worker 任务。
 """
+
 from __future__ import annotations
 
-from typing import Any, Optional
+from typing import Any
 
 from sqlalchemy import select
 
@@ -63,9 +64,7 @@ class DocumentPipeline:
         # 回填 celery_task_id 便于后续 cancel
         await self._update_parse_task_celery_id(document_id, celery_task_id)
 
-        logger.info(
-            f"已提交解析任务: document_id={document_id}, celery_task_id={celery_task_id}"
-        )
+        logger.info(f"已提交解析任务: document_id={document_id}, celery_task_id={celery_task_id}")
         return celery_task_id
 
     # ------------------------------------------------------------------
@@ -83,9 +82,7 @@ class DocumentPipeline:
                 select(ParseTask).where(ParseTask.document_id == document_id)
             )
             task = result.scalar_one_or_none()
-            doc_result = await session.execute(
-                select(Document).where(Document.id == document_id)
-            )
+            doc_result = await session.execute(select(Document).where(Document.id == document_id))
             doc = doc_result.scalar_one_or_none()
 
         if task is None and doc is None:
@@ -161,11 +158,9 @@ class DocumentPipeline:
     # ------------------------------------------------------------------
 
     @staticmethod
-    async def _load_document(document_id: int) -> Optional[Document]:
+    async def _load_document(document_id: int) -> Document | None:
         async with db_session() as session:
-            result = await session.execute(
-                select(Document).where(Document.id == document_id)
-            )
+            result = await session.execute(select(Document).where(Document.id == document_id))
             return result.scalar_one_or_none()
 
     @staticmethod
@@ -184,7 +179,7 @@ class DocumentPipeline:
         stage: str,
         progress: float,
         status: str,
-        error: Optional[str] = None,
+        error: str | None = None,
     ) -> None:
         async with db_session() as session:
             result = await session.execute(
@@ -214,5 +209,5 @@ class DocumentPipeline:
             )
             task = result.scalar_one_or_none()
             if task is not None:
-                setattr(task, "celery_task_id", celery_task_id)
+                task.celery_task_id = celery_task_id
                 await session.commit()

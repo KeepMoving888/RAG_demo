@@ -4,7 +4,7 @@
 记录关键操作 (文档上传/删除/权限变更/图谱抽取), 满足企业级合规审计需求.
 """
 
-from sqlalchemy import String, Integer, ForeignKey, Index, Text, JSON
+from sqlalchemy import JSON, ForeignKey, Index, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.models.base import Base, IDMixin, TimestampMixin
@@ -23,7 +23,8 @@ class AuditLog(Base, IDMixin, TimestampMixin):
 
     user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
     action: Mapped[str] = mapped_column(
-        String(64), nullable=False,
+        String(64),
+        nullable=False,
         comment="动作: doc.upload / doc.delete / auth.login / graph.rebuild",
     )
     resource_type: Mapped[str | None] = mapped_column(String(32), nullable=True)

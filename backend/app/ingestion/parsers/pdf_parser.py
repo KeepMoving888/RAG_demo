@@ -14,10 +14,11 @@
 4. **优雅降级**：PaddleOCR 不可用时记录 warning 并返回空文本而非崩溃，
    保证流水线对缺依赖环境仍可运行（仅丢失 OCR 能力）。
 """
+
 from __future__ import annotations
 
 import os
-from typing import Any, Optional
+from typing import Any
 
 from app.ingestion.parsers.base import (
     BaseParser,
@@ -72,7 +73,7 @@ class PDFParser(BaseParser):
             logger.info("PyMuPDF 已加载")
         return self._fitz_module
 
-    def _load_ocr(self) -> Optional[Any]:
+    def _load_ocr(self) -> Any | None:
         """懒加载 PaddleOCR 引擎。
 
         返回 None 表示 OCR 不可用。懒加载的核心收益：绝大多数 PDF 都有
@@ -83,9 +84,7 @@ class PDFParser(BaseParser):
             try:
                 from paddleocr import PaddleOCR  # type: ignore[import-not-found]
             except ImportError:
-                logger.warning(
-                    "PaddleOCR 未安装，扫描页/图片页将无法 OCR，返回空文本"
-                )
+                logger.warning("PaddleOCR 未安装，扫描页/图片页将无法 OCR，返回空文本")
                 return None
             try:
                 self._ocr_engine = PaddleOCR(use_angle_cls=True, lang="ch", show_log=False)
@@ -257,6 +256,7 @@ class PDFParser(BaseParser):
             fitz = self._fitz_module
             pix = page.get_pixmap(dpi=200)
             import io
+
             from PIL import Image  # type: ignore[import-not-found]
 
             img = Image.open(io.BytesIO(pix.tobytes("png")))
@@ -300,8 +300,9 @@ class PDFParser(BaseParser):
         if not rows:
             return ""
         normalized = [
-            [("" if cell is None else str(cell)).replace("|", "\\|").replace("\n", " ")
-            for cell in row
+            [
+                ("" if cell is None else str(cell)).replace("|", "\\|").replace("\n", " ")
+                for cell in row
             ]
             or [""] * max((len(r) for r in rows), default=1)
             for row in rows

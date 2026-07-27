@@ -18,8 +18,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from app.config import settings
+from app.core.context import RequestContext, set_request_context
 from app.utils.logger import logger
-from app.core.context import set_request_context, RequestContext
 
 
 # ======================== 生命周期 ========================
@@ -28,15 +28,20 @@ async def lifespan(app: FastAPI):
     """应用生命周期管理"""
     logger.info("=" * 60)
     logger.info("Enterprise RAG Knowledge Base 启动中...")
-    logger.info("环境: {} | 调试: {} | LLM Provider: {}",
-                settings.app_env, settings.debug, settings.llm_provider)
+    logger.info(
+        "环境: {} | 调试: {} | LLM Provider: {}",
+        settings.app_env,
+        settings.debug,
+        settings.llm_provider,
+    )
     logger.info("=" * 60)
 
     # 启动时建表 (开发环境)
     if settings.app_env == "development":
         try:
-            from app.models import Base
             from app.database import engine
+            from app.models import Base
+
             async with engine.begin() as conn:
                 await conn.run_sync(Base.metadata.create_all)
             logger.info("开发模式: 已自动建表")
@@ -46,6 +51,7 @@ async def lifespan(app: FastAPI):
     # 初始化 Milvus Collection
     try:
         from app.rag.milvus_store import milvus_store
+
         await milvus_store.init_collection()
         logger.info("Milvus Collection 初始化完成")
     except Exception as e:
@@ -54,6 +60,7 @@ async def lifespan(app: FastAPI):
     # 初始化 Neo4j Schema
     try:
         from app.graphrag.neo4j_store import neo4j_store
+
         await neo4j_store.init_schema()
         logger.info("Neo4j Schema 初始化完成")
     except Exception as e:
@@ -64,6 +71,7 @@ async def lifespan(app: FastAPI):
 
     # 关闭清理
     from app.database import engine
+
     await engine.dispose()
     logger.info("应用已关闭")
 
@@ -103,6 +111,7 @@ async def request_context_middleware(request: Request, call_next):
     if auth.startswith("Bearer "):
         try:
             from app.core.security import decode_access_token
+
             payload = decode_access_token(auth[7:])
             user_id = int(payload.get("sub", 0)) or None
             department_id = payload.get("dept")
@@ -110,13 +119,15 @@ async def request_context_middleware(request: Request, call_next):
         except Exception:
             pass
 
-    set_request_context(RequestContext(
-        user_id=user_id,
-        department_id=department_id,
-        role=role,
-        ip_address=request.client.host if request.client else None,
-        request_id=request_id,
-    ))
+    set_request_context(
+        RequestContext(
+            user_id=user_id,
+            department_id=department_id,
+            role=role,
+            ip_address=request.client.host if request.client else None,
+            request_id=request_id,
+        )
+    )
 
     response = await call_next(request)
     response.headers["X-Request-ID"] = request_id
@@ -127,6 +138,7 @@ async def request_context_middleware(request: Request, call_next):
 if settings.enable_metrics:
     try:
         from prometheus_fastapi_instrumentator import Instrumentator
+
         Instrumentator(
             should_group_status_codes=True,
             should_ignore_untemplated=True,
@@ -141,6 +153,7 @@ if settings.enable_metrics:
 # ======================== 路由注册 ========================
 try:
     from app.api.v1 import api_router
+
     app.include_router(api_router)
     logger.info("API v1 路由注册完成")
 except ImportError as e:
@@ -150,8 +163,26 @@ except ImportError as e:
 # ======================== 健康检查 ========================
 @app.get("/health", tags=["系统"])
 async def health_check():
-    """健康检查"""
+    """轻量健康检查 (不查 DB, 仅供 LB / K8s liveness probe).
+
+    性能: < 2ms (仅进程存活 + 时间戳), 不触发数据库连接.
+    深度健康检查请用 /health/db.
+    """
+    return {
+        "status": "healthy",
+        "timestamp": datetime.utcnow().isoformat(),
+        "version": "1.0.0",
+    }
+
+
+@app.get("/health/db", tags=["系统"])
+async def health_check_db():
+    """深度健康检查 (含 DB 连通性, 供 K8s readiness probe).
+
+    性能: ~5-50ms (取决于连接池状态), 适合部署期探针, 不适合 LB 高频探测.
+    """
     from app.database import check_db_connection
+
     db_ok = await check_db_connection()
     return {
         "status": "healthy" if db_ok else "degraded",

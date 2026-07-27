@@ -11,12 +11,13 @@
 4. **批量向量化**：按 ``settings.embedding_batch_size`` 分批 encode，兼顾吞吐
    与显存占用。
 """
+
 from __future__ import annotations
 
 import asyncio
 import hashlib
 import random
-from typing import Any, Optional
+from typing import Any
 
 from app.config import settings
 from app.utils.logger import logger
@@ -29,9 +30,9 @@ class BGEM3Embedder:
     向量化接口，内置 Redis 缓存与降级策略。
     """
 
-    _instance: Optional["BGEM3Embedder"] = None
+    _instance: BGEM3Embedder | None = None
 
-    def __new__(cls) -> "BGEM3Embedder":
+    def __new__(cls) -> BGEM3Embedder:
         """单例：全局复用一个模型实例与 Redis 连接。"""
         if cls._instance is None:
             cls._instance = super().__new__(cls)
@@ -76,9 +77,7 @@ class BGEM3Embedder:
                 self._dimension = real_dim
             logger.info(f"BGE-M3 模型已加载: {self._model_name}, dim={self._dimension}")
         except Exception as exc:  # noqa: BLE001 任意加载失败均降级
-            logger.warning(
-                f"加载嵌入模型失败，降级为随机向量（离线模式）: {exc}"
-            )
+            logger.warning(f"加载嵌入模型失败，降级为随机向量（离线模式）: {exc}")
             self._degraded = True
         return self._model
 
@@ -120,7 +119,7 @@ class BGEM3Embedder:
 
         # 批量查缓存
         cached = await self._mget_cached(redis, cache_keys)
-        results: list[Optional[list[float]]] = [
+        results: list[list[float] | None] = [
             cached[i] if i < len(cached) else None for i in range(len(texts))
         ]
         # 收集未命中项
@@ -155,9 +154,7 @@ class BGEM3Embedder:
         all_vectors: list[list[float]] = []
         for start in range(0, len(texts), self._batch_size):
             batch = texts[start : start + self._batch_size]
-            vectors = await loop.run_in_executor(
-                None, lambda b=batch: self._run_encode(model, b)
-            )
+            vectors = await loop.run_in_executor(None, lambda b=batch: self._run_encode(model, b))
             all_vectors.extend(vectors)
         return all_vectors
 
@@ -189,13 +186,13 @@ class BGEM3Embedder:
         digest = hashlib.md5(text.encode("utf-8")).hexdigest()
         return f"emb:{digest}"
 
-    async def _mget_cached(self, redis: Any, keys: list[str]) -> list[Optional[list[float]]]:
+    async def _mget_cached(self, redis: Any, keys: list[str]) -> list[list[float] | None]:
         """批量读缓存，Redis 不可用或解析失败返回全 None。"""
         if redis is None or not keys:
             return [None] * len(keys)
         try:
             raw = await redis.mget(keys)
-            results: list[Optional[list[float]]] = []
+            results: list[list[float] | None] = []
             for item in raw:
                 if item is None:
                     results.append(None)
@@ -226,7 +223,7 @@ class BGEM3Embedder:
         return struct.pack(f"{len(vec)}f", *vec)
 
     @staticmethod
-    def _deserialize(data: Any) -> Optional[list[float]]:
+    def _deserialize(data: Any) -> list[float] | None:
         """反序列化缓存值为向量。"""
         import struct
 

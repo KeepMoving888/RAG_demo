@@ -9,18 +9,18 @@
 
 from contextvars import ContextVar
 from dataclasses import dataclass
-from typing import Optional
 
 
 @dataclass
 class RequestContext:
     """请求上下文"""
-    user_id: Optional[int] = None
-    email: Optional[str] = None
-    department_id: Optional[int] = None
-    role: Optional[str] = None
-    ip_address: Optional[str] = None
-    request_id: Optional[str] = None
+
+    user_id: int | None = None
+    email: str | None = None
+    department_id: int | None = None
+    role: str | None = None
+    ip_address: str | None = None
+    request_id: str | None = None
 
 
 # contextvars: 协程安全
@@ -34,16 +34,16 @@ def set_request_context(ctx: RequestContext) -> None:
     request_context.set(ctx)
 
 
-def get_current_user_id() -> Optional[int]:
+def get_current_user_id() -> int | None:
     """业务代码深度获取当前用户 ID"""
     return request_context.get().user_id
 
 
-def get_current_department_id() -> Optional[int]:
+def get_current_department_id() -> int | None:
     """业务代码深度获取当前部门 ID"""
     return request_context.get().department_id
 
 
-def get_current_request_id() -> Optional[str]:
+def get_current_request_id() -> str | None:
     """获取请求 ID (链路追踪)"""
     return request_context.get().request_id

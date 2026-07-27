@@ -17,8 +17,9 @@ Enterprise RAG Knowledge Base - Celery 异步任务实例
 # AttributeError: 'NoneType' object has no attribute 'send'
 # 必须在 import celery/asyncpg 之前切换到 SelectorEventLoop
 # 参考: https://github.com/MagicStack/asyncpg/issues/515
-import sys
 import asyncio
+import sys
+
 if sys.platform == "win32":
     asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
 

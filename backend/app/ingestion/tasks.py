@@ -13,12 +13,13 @@
 5. **降级**：Milvus 不可用时跳过向量入库（仅落 DB），保证流水线不因向量库
    抖动而失败。
 """
+
 from __future__ import annotations
 
 import asyncio
 import os
 import time
-from typing import Any, Optional
+from typing import Any
 
 from tenacity import (
     retry,
@@ -128,6 +129,7 @@ async def _parse_document_async(document_id: int) -> dict:
     # dispose 后 engine 会按需在当前循环上重建连接池，避免
     # "Future attached to a different loop" 错误。
     from app.database import engine
+
     await engine.dispose()
 
     start_ts = time.monotonic()
@@ -184,6 +186,7 @@ async def _chunk_and_embed_async(document_id: int) -> dict:
     """断点续跑：重新解析→分块→向量化→落库。"""
     # 同 _parse_document_async：先 dispose 旧循环上的连接池
     from app.database import engine
+
     await engine.dispose()
 
     start_ts = time.monotonic()
@@ -316,8 +319,8 @@ async def _update_parse_task(
     document_id: int,
     stage: str,
     progress: float,
-    status: Optional[str] = None,
-    error: Optional[str] = None,
+    status: str | None = None,
+    error: str | None = None,
 ) -> None:
     """更新或创建 ParseTask 进度记录。"""
     from sqlalchemy import select
@@ -346,9 +349,7 @@ async def _delete_old_chunks(session: Any, document_id: int) -> None:
     """删除旧分块，支持断点续跑重写。"""
     from sqlalchemy import delete
 
-    await session.execute(
-        delete(DocumentChunk).where(DocumentChunk.document_id == document_id)
-    )
+    await session.execute(delete(DocumentChunk).where(DocumentChunk.document_id == document_id))
 
 
 async def _mark_failed_safe(document_id: int, error_message: str) -> None:

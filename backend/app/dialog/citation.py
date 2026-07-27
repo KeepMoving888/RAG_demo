@@ -30,7 +30,6 @@ import re
 from app.metrics import CITATION_COVERAGE
 from app.utils.logger import logger
 
-
 # 句子切分: 按中英文句号/问号/叹号/分号切分, 保留分隔符
 _SENT_SPLIT_RE = re.compile(r"(?<=[。!?\!？；;])\s*")
 
@@ -47,9 +46,7 @@ class CitationExtractor:
     def __init__(self, threshold: float = _SIM_THRESHOLD) -> None:
         self._threshold = threshold
 
-    async def extract(
-        self, answer: str, retrieved_chunks: list[dict]
-    ) -> list[dict]:
+    async def extract(self, answer: str, retrieved_chunks: list[dict]) -> list[dict]:
         """
         抽取答案中引用的 chunk.
 
@@ -87,15 +84,17 @@ class CitationExtractor:
 
             if best_score >= self._threshold:
                 snippet = self._make_snippet(best_sentence, content)
-                citations.append({
-                    "chunk_id": chunk_id,
-                    "document_id": chunk.get("document_id"),
-                    "doc_title": chunk.get("doc_title") or chunk.get("title") or "",
-                    "snippet": snippet,
-                    "page_number": chunk.get("page_number"),
-                    "heading_path": chunk.get("heading_path") or "",
-                    "score": round(best_score, 4),
-                })
+                citations.append(
+                    {
+                        "chunk_id": chunk_id,
+                        "document_id": chunk.get("document_id"),
+                        "doc_title": chunk.get("doc_title") or chunk.get("title") or "",
+                        "snippet": snippet,
+                        "page_number": chunk.get("page_number"),
+                        "heading_path": chunk.get("heading_path") or "",
+                        "score": round(best_score, 4),
+                    }
+                )
 
         # 按相似度降序
         citations.sort(key=lambda c: c["score"], reverse=True)
@@ -109,7 +108,9 @@ class CitationExtractor:
 
         logger.debug(
             "答案溯源: sentences={} citations={} coverage={:.2f}",
-            len(sentences), len(citations), coverage,
+            len(sentences),
+            len(citations),
+            coverage,
         )
         return citations
 
@@ -166,7 +167,7 @@ class CitationExtractor:
         cleaned = re.sub(r"[\s\n\r\t。!?\!？；;.,，、·\"'()（）\[\]【】]", "", text)
         if len(cleaned) < 2:
             return {cleaned} if cleaned else set()
-        return {cleaned[i: i + 2] for i in range(len(cleaned) - 1)}
+        return {cleaned[i : i + 2] for i in range(len(cleaned) - 1)}
 
     def _jaccard_similarity(self, sentence: str, chunk_content: str) -> float:
         """

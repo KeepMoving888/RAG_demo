@@ -8,7 +8,6 @@
 4. 支持 JSON 格式 (生产环境)
 """
 
-import os
 import sys
 from pathlib import Path
 
@@ -48,8 +47,7 @@ def _setup_logger():
         compression="zip",
         encoding="utf-8",
         format=(
-            "{time:YYYY-MM-DD HH:mm:ss.SSS} | {level: <8} | "
-            "{name}:{function}:{line} - {message}"
+            "{time:YYYY-MM-DD HH:mm:ss.SSS} | {level: <8} | {name}:{function}:{line} - {message}"
         ),
         backtrace=True,
         diagnose=settings.debug,
@@ -64,8 +62,7 @@ def _setup_logger():
         compression="zip",
         encoding="utf-8",
         format=(
-            "{time:YYYY-MM-DD HH:mm:ss.SSS} | {level: <8} | "
-            "{name}:{function}:{line} - {message}"
+            "{time:YYYY-MM-DD HH:mm:ss.SSS} | {level: <8} | {name}:{function}:{line} - {message}"
         ),
         backtrace=True,
         diagnose=True,
@@ -86,9 +83,7 @@ def _setup_logger():
             while frame and frame.f_code.co_filename == logging.__file__:
                 frame = frame.f_back
                 depth += 1
-            logger.opt(depth=depth, exception=record.exc_info).log(
-                level, record.getMessage()
-            )
+            logger.opt(depth=depth, exception=record.exc_info).log(level, record.getMessage())
 
     logging.basicConfig(handlers=[InterceptHandler()], level=0, force=True)
 

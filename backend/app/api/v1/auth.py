@@ -10,17 +10,20 @@
 2. 注册: 仅 ``admin`` 可调用 (依赖 ``require_role("admin")``), 防止任意人开账号.
 3. 审计: 登录成功 / 失败 / 注册均写 ``AuditLog``, 含 IP / UA / 状态, 便于追溯.
 """
+
 from __future__ import annotations
 
 from datetime import datetime, timezone
-from typing import Optional
+
+# 兼容 Python 3.10 (datetime.UTC 在 3.11+ 才有)
+UTC = timezone.utc
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel, EmailStr, Field
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.context import get_current_user_id, request_context
+from app.core.context import request_context
 from app.core.security import (
     create_access_token,
     get_current_user,
@@ -39,28 +42,31 @@ router = APIRouter()
 # ======================== Schemas ========================
 class LoginRequest(BaseModel):
     """登录请求"""
+
     email: EmailStr
     password: str = Field(min_length=1, max_length=128)
 
 
 class RegisterRequest(BaseModel):
     """注册请求 (admin 调用)"""
+
     email: EmailStr
     password: str = Field(min_length=6, max_length=128)
     name: str = Field(min_length=1, max_length=64)
-    department_id: Optional[int] = None
+    department_id: int | None = None
     role: str = Field(default="staff", pattern="^(admin|staff)$")
 
 
 class UserOut(BaseModel):
     """用户对外结构"""
+
     id: int
     email: EmailStr
     name: str
-    department_id: Optional[int] = None
+    department_id: int | None = None
     role: str
     is_active: bool
-    last_login_at: Optional[datetime] = None
+    last_login_at: datetime | None = None
 
     class Config:
         from_attributes = True
@@ -68,6 +74,7 @@ class UserOut(BaseModel):
 
 class LoginResponse(BaseModel):
     """登录响应"""
+
     access_token: str
     token_type: str = "bearer"
     user: UserOut
@@ -77,11 +84,11 @@ class LoginResponse(BaseModel):
 async def _write_audit(
     db: AsyncSession,
     action: str,
-    user_id: Optional[int],
+    user_id: int | None,
     status_: str = "success",
-    error: Optional[str] = None,
-    resource_id: Optional[str] = None,
-    detail: Optional[dict] = None,
+    error: str | None = None,
+    resource_id: str | None = None,
+    detail: dict | None = None,
 ) -> None:
     """写入审计日志 (失败不阻断主流程)."""
     try:
@@ -138,7 +145,10 @@ async def login(
 
     if user is None or not verify_password(payload.password, user.hashed_password):
         await _write_audit(
-            db, "auth.login", None, status_="failed",
+            db,
+            "auth.login",
+            None,
+            status_="failed",
             error="邮箱或密码错误",
             resource_id=payload.email,
             detail={"email": payload.email},
@@ -151,7 +161,10 @@ async def login(
 
     if not user.is_active:
         await _write_audit(
-            db, "auth.login", user.id, status_="failed",
+            db,
+            "auth.login",
+            user.id,
+            status_="failed",
             error="账号已禁用",
             resource_id=str(user.id),
         )
@@ -161,30 +174,37 @@ async def login(
         )
 
     # 颁发 JWT
-    token = create_access_token({
-        "sub": str(user.id),
-        "email": user.email,
-        "dept": user.department_id,
-        "role": user.role,
-    })
+    token = create_access_token(
+        {
+            "sub": str(user.id),
+            "email": user.email,
+            "dept": user.department_id,
+            "role": user.role,
+        }
+    )
 
     # 更新最近登录时间 (last_login_at 列为 TIMESTAMP WITHOUT TIME ZONE, 需 naive datetime)
-    user.last_login_at = datetime.now(timezone.utc).replace(tzinfo=None)
+    user.last_login_at = datetime.now(UTC).replace(tzinfo=None)
     await db.flush()
 
     await _write_audit(
-        db, "auth.login", user.id, status_="success",
+        db,
+        "auth.login",
+        user.id,
+        status_="success",
         resource_id=str(user.id),
         detail={"email": user.email, "role": user.role},
     )
 
     logger.info("用户登录成功: id={} email={}", user.id, user.email)
 
-    return SuccessResponse[LoginResponse](data=LoginResponse(
-        access_token=token,
-        token_type="bearer",
-        user=_user_to_out(user),
-    ))
+    return SuccessResponse[LoginResponse](
+        data=LoginResponse(
+            access_token=token,
+            token_type="bearer",
+            user=_user_to_out(user),
+        )
+    )
 
 
 @router.get("/me", response_model=SuccessResponse[UserOut])
@@ -242,17 +262,25 @@ async def register(
     await db.flush()
 
     await _write_audit(
-        db, "auth.register", admin.id, status_="success",
+        db,
+        "auth.register",
+        admin.id,
+        status_="success",
         resource_id=str(user.id),
         detail={
-            "new_user_id": user.id, "new_user_email": user.email,
-            "role": user.role, "department_id": user.department_id,
+            "new_user_id": user.id,
+            "new_user_email": user.email,
+            "role": user.role,
+            "department_id": user.department_id,
         },
     )
 
     logger.info(
         "管理员 {} 注册新用户: id={} email={} role={}",
-        admin.id, user.id, user.email, user.role,
+        admin.id,
+        user.id,
+        user.email,
+        user.role,
     )
 
     return SuccessResponse[UserOut](data=_user_to_out(user))

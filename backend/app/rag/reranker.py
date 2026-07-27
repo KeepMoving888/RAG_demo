@@ -30,7 +30,7 @@ Cross-Encoder 模型加载耗时数秒，整个进程共享一个实例即可，
 from __future__ import annotations
 
 import asyncio
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from app.config import settings
 from app.utils.logger import logger
@@ -54,11 +54,11 @@ class CrossEncoderReranker:
         模型名，默认取 settings.reranker_model。
     """
 
-    def __init__(self, model_name: Optional[str] = None) -> None:
-        self._model_name: str = (
-            model_name or getattr(settings, "reranker_model", "BAAI/bge-reranker-v2-m3")
+    def __init__(self, model_name: str | None = None) -> None:
+        self._model_name: str = model_name or getattr(
+            settings, "reranker_model", "BAAI/bge-reranker-v2-m3"
         )
-        self._model: Optional["CrossEncoder"] = None
+        self._model: CrossEncoder | None = None
         self._model_loaded: bool = False
         self._load_attempted: bool = False
 
@@ -86,8 +86,6 @@ class CrossEncoderReranker:
             device = self._resolve_device()
             if getattr(settings, "embedding_use_fp16", False) and device.startswith("cuda"):
                 try:
-                    import torch
-
                     self._model.model = self._model.model.half()
                     logger.info("Cross-Encoder 已切换 FP16 半精度推理")
                 except Exception as fp16_err:  # noqa: BLE001
@@ -107,9 +105,7 @@ class CrossEncoderReranker:
                 import torch
 
                 if not torch.cuda.is_available():
-                    logger.warning(
-                        "Reranker 配置 device=%s 但 CUDA 不可用, 降级 cpu", device
-                    )
+                    logger.warning("Reranker 配置 device=%s 但 CUDA 不可用, 降级 cpu", device)
                     return "cpu"
             except ImportError:
                 return "cpu"
@@ -121,10 +117,10 @@ class CrossEncoderReranker:
     async def rerank(
         self,
         query: str,
-        candidates: List[Dict[str, Any]],
+        candidates: list[dict[str, Any]],
         top_k: int = 5,
         content_field: str = "content",
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """对候选列表精排。
 
         执行三级降级链：
@@ -171,9 +167,7 @@ class CrossEncoderReranker:
                 )
                 return ranked
             except Exception as exc:  # noqa: BLE001
-                logger.error(
-                    "Cross-Encoder 精排异常，降级为 RRF fallback: %s", exc
-                )
+                logger.error("Cross-Encoder 精排异常，降级为 RRF fallback: %s", exc)
 
         # 第三级：RRF fallback
         ranked = self._rerank_with_rrf_fallback(candidates, top_k)
@@ -185,16 +179,13 @@ class CrossEncoderReranker:
     async def _rerank_with_cross_encoder(
         self,
         query: str,
-        candidates: List[Dict[str, Any]],
+        candidates: list[dict[str, Any]],
         top_k: int,
         content_field: str,
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """用 Cross-Encoder 对候选打分并排序。"""
         # 构造 (query, content) 对
-        pairs = [
-            (query, str(doc.get(content_field, "")))
-            for doc in candidates
-        ]
+        pairs = [(query, str(doc.get(content_field, ""))) for doc in candidates]
 
         # Cross-Encoder 的 predict 是同步 CPU 密集操作，放线程池
         # 显式 batch_size 控制显存峰值, 避免 50 候选 OOM
@@ -220,17 +211,15 @@ class CrossEncoderReranker:
 
     def _rerank_with_rrf_fallback(
         self,
-        candidates: List[Dict[str, Any]],
+        candidates: list[dict[str, Any]],
         top_k: int,
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """RRF fallback：直接用已有的 RRF 分数排序。
 
         候选列表在 RRF 融合后已按 ``score``（rrf_score）降序，但为保险起见
         重新排序。降级时 ``rerank_score`` 设为原 RRF 分数。
         """
-        ranked = sorted(
-            candidates, key=lambda x: x.get("score", 0.0), reverse=True
-        )
+        ranked = sorted(candidates, key=lambda x: x.get("score", 0.0), reverse=True)
         for rank, doc in enumerate(ranked, start=1):
             doc["rank"] = rank
             doc["rerank_score"] = doc.get("score", 0.0)
@@ -250,7 +239,7 @@ class CrossEncoderReranker:
         return True
 
     @property
-    def model_info(self) -> Dict[str, Any]:
+    def model_info(self) -> dict[str, Any]:
         """模型信息。"""
         return {
             "model_name": self._model_name,
@@ -262,7 +251,7 @@ class CrossEncoderReranker:
 # ---------------------------------------------------------------------------
 # 单例
 # ---------------------------------------------------------------------------
-_reranker_instance: Optional[CrossEncoderReranker] = None
+_reranker_instance: CrossEncoderReranker | None = None
 
 
 def get_reranker() -> CrossEncoderReranker:

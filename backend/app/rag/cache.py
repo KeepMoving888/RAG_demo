@@ -27,8 +27,9 @@ from __future__ import annotations
 import hashlib
 import json
 import time
-from typing import Any, Dict, Optional
+from typing import Any
 
+from app.config import settings
 from app.utils.logger import logger
 
 try:
@@ -61,10 +62,10 @@ class RetrievalCache:
 
     def __init__(
         self,
-        redis_url: Optional[str] = None,
+        redis_url: str | None = None,
         default_ttl: int = 3600,
     ) -> None:
-        self._redis_url: Optional[str] = redis_url or settings_redis_url()
+        self._redis_url: str | None = redis_url or settings_redis_url()
         self._default_ttl: int = default_ttl
         self._redis = None
         self._connected: bool = False
@@ -76,7 +77,9 @@ class RetrievalCache:
         if not self._connected:
             try:
                 max_conn = int(getattr(settings, "redis_max_connections", 64))
-                pool = aioredis.BlockingConnectionPool.from_url(
+                # 用 ConnectionPool (非阻塞) 而非 BlockingConnectionPool
+                # async 上下文中 BlockingConnectionPool 可能阻塞事件循环
+                pool = aioredis.ConnectionPool.from_url(
                     self._redis_url,
                     decode_responses=True,
                     max_connections=max_conn,
@@ -84,9 +87,13 @@ class RetrievalCache:
                 self._redis = aioredis.Redis(connection_pool=pool)
                 await self._redis.ping()
                 self._connected = True
-                logger.debug("RetrievalCache Redis 已连接 (pool_max=%d)", max_conn)
+                logger.info(
+                    "RetrievalCache Redis 已连接: url={}, pool_max={}", self._redis_url, max_conn
+                )
             except Exception as exc:  # noqa: BLE001
-                logger.warning("RetrievalCache Redis 连接失败，缓存降级: %s", exc)
+                logger.warning(
+                    "RetrievalCache Redis 连接失败，缓存降级: url={}, err={}", self._redis_url, exc
+                )
                 self._redis = None
                 self._connected = False
         return self._redis
@@ -94,7 +101,7 @@ class RetrievalCache:
     # ------------------------------------------------------------------
     # Key 生成
     # ------------------------------------------------------------------
-    def _make_key(self, query: str, department_id: Optional[int], top_k: int) -> str:
+    def _make_key(self, query: str, department_id: int | None, top_k: int) -> str:
         """生成缓存 key。
 
         纳入 department_id 与 top_k 确保权限隔离与不同返回数量的结果不串。
@@ -109,9 +116,9 @@ class RetrievalCache:
     async def get(
         self,
         query: str,
-        department_id: Optional[int],
+        department_id: int | None,
         top_k: int,
-    ) -> Optional[Dict[str, Any]]:
+    ) -> dict[str, Any] | None:
         """读取缓存。
 
         Returns
@@ -143,10 +150,10 @@ class RetrievalCache:
     async def set(
         self,
         query: str,
-        department_id: Optional[int],
+        department_id: int | None,
         top_k: int,
-        result: Dict[str, Any],
-        ttl: Optional[int] = None,
+        result: dict[str, Any],
+        ttl: int | None = None,
     ) -> None:
         """写入缓存。
 
@@ -249,7 +256,7 @@ def settings_redis_url() -> str:
 # ---------------------------------------------------------------------------
 # 单例
 # ---------------------------------------------------------------------------
-_cache_instance: Optional[RetrievalCache] = None
+_cache_instance: RetrievalCache | None = None
 
 
 def get_retrieval_cache() -> RetrievalCache:

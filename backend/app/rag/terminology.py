@@ -36,7 +36,6 @@ from __future__ import annotations
 
 import json
 import os
-from typing import Dict, List, Tuple
 
 from app.utils.logger import logger
 
@@ -49,10 +48,10 @@ _DEFAULT_TERM_PATH = os.path.join(
 )
 
 # 内置兜底术语（当种子文件不存在时使用，保证离线模式可用）
-_FALLBACK_TERMS: Dict[str, Dict] = {
+# 注意: 同义词只作为主术语的别名出现, 不单独作为主术语条目, 避免命中时
+#       返回错误的主术语 (如 "车载存储模块" 不应作为主术语, 它是 "车规 eMMC" 的别名)
+_FALLBACK_TERMS: dict[str, dict] = {
     "车规 eMMC": {"synonyms": ["车载存储模块", "车规eMMC"], "type": "product"},
-    "车规eMMC": {"synonyms": ["车载存储模块", "车规 eMMC"], "type": "product"},
-    "车载存储模块": {"synonyms": ["车规 eMMC", "车规eMMC"], "type": "product"},
     "RoHS": {"synonyms": ["有害物质限制指令"], "type": "standard"},
     "有害物质限制指令": {"synonyms": ["RoHS"], "type": "standard"},
     "ISO 9001": {"synonyms": ["质量管理体系认证", "ISO9001"], "type": "standard"},
@@ -118,9 +117,9 @@ class TerminologyExpander:
     def __init__(self, term_path: str | None = None) -> None:
         self._term_path: str = term_path or _DEFAULT_TERM_PATH
         # 词典：term -> {"synonyms": [...], "type": str}
-        self._terms: Dict[str, Dict] = {}
+        self._terms: dict[str, dict] = {}
         # 反向索引：同义词 -> 主术语（用于命中后查找完整同义词组）
-        self._synonym_index: Dict[str, str] = {}
+        self._synonym_index: dict[str, str] = {}
         self._load()
         logger.info(
             "TerminologyExpander 已加载，术语数=%d，同义词索引数=%d",
@@ -132,24 +131,41 @@ class TerminologyExpander:
     # 加载
     # ------------------------------------------------------------------
     def _load(self) -> None:
-        """从种子数据文件加载术语词典，失败时使用内置兜底词典。"""
+        """从种子数据文件加载术语词典，失败时使用内置兜底词典。
+
+        支持两种 JSON 格式:
+        - dict: ``{"term": {"synonyms": [...], "type": "..."}}``
+        - list: ``[{"term": "...", "synonyms": [...], "category": "..."}]``
+        """
         loaded = False
         if os.path.exists(self._term_path):
             try:
-                with open(self._term_path, "r", encoding="utf-8") as fh:
+                with open(self._term_path, encoding="utf-8") as fh:
                     data = json.load(fh)
                 if isinstance(data, dict):
                     self._terms = data
                     loaded = True
+                elif isinstance(data, list):
+                    # 列表格式: 每项含 term/synonyms/category 字段
+                    self._terms = {}
+                    for item in data:
+                        if not isinstance(item, dict):
+                            continue
+                        term = item.get("term") or item.get("name")
+                        if not term:
+                            continue
+                        synonyms = item.get("synonyms", [])
+                        category = item.get("category") or item.get("type", "custom")
+                        self._terms[term] = {"synonyms": synonyms, "type": category}
+                    loaded = True
+                if loaded:
                     logger.info(
                         "术语词典从种子文件加载成功: %s，条目数=%d",
                         self._term_path,
-                        len(data),
+                        len(self._terms),
                     )
             except (json.JSONDecodeError, OSError) as exc:
-                logger.warning(
-                    "术语词典加载失败(%s)，使用内置兜底词典: %s", self._term_path, exc
-                )
+                logger.warning("术语词典加载失败(%s)，使用内置兜底词典: %s", self._term_path, exc)
 
         if not loaded:
             self._terms = dict(_FALLBACK_TERMS)
@@ -165,7 +181,7 @@ class TerminologyExpander:
     # ------------------------------------------------------------------
     # 查询扩展
     # ------------------------------------------------------------------
-    def expand_query(self, query: str) -> Tuple[str, List[str]]:
+    def expand_query(self, query: str) -> tuple[str, list[str]]:
         """扩展查询，注入术语同义词。
 
         扫描 query 中是否出现术语或其同义词；若命中，将同义词以 OR 形式追加
@@ -193,7 +209,7 @@ class TerminologyExpander:
             return query, []
 
         query_lower = query.lower()
-        term_hits: List[str] = []
+        term_hits: list[str] = []
         seen_terms: set[str] = set()
 
         # 遍历同义词索引，检查 query 是否包含某术语/同义词
@@ -210,7 +226,7 @@ class TerminologyExpander:
             return query, []
 
         # 收集所有同义词（去重），以 OR 注入
-        expansion_parts: List[str] = []
+        expansion_parts: list[str] = []
         expansion_seen: set[str] = set()
         for term in term_hits:
             info = self._terms.get(term, {})
@@ -224,17 +240,13 @@ class TerminologyExpander:
             return query, term_hits
 
         expanded_query = f"{query} OR " + " OR ".join(expansion_parts)
-        logger.debug(
-            "查询扩展: '%s' -> '%s'，命中术语=%s", query, expanded_query, term_hits
-        )
+        logger.debug("查询扩展: '%s' -> '%s'，命中术语=%s", query, expanded_query, term_hits)
         return expanded_query, term_hits
 
     # ------------------------------------------------------------------
     # 词项加权
     # ------------------------------------------------------------------
-    def boost_term_weight(
-        self, tokens: List[str], term_hits: List[str]
-    ) -> List[Tuple[str, float]]:
+    def boost_term_weight(self, tokens: list[str], term_hits: list[str]) -> list[tuple[str, float]]:
         """对术语命中的 token 施加权重提升。
 
         将分词后的 token 列表转为 ``(token, weight)`` 列表，术语相关的 token
@@ -264,7 +276,7 @@ class TerminologyExpander:
             for syn in info.get("synonyms", []):
                 boost_words.add(syn.lower())
 
-        result: List[Tuple[str, float]] = []
+        result: list[tuple[str, float]] = []
         for tok in tokens:
             weight = self.TERM_WEIGHT_BOOST if tok.lower() in boost_words else 1.0
             result.append((tok, weight))
@@ -273,7 +285,7 @@ class TerminologyExpander:
     # ------------------------------------------------------------------
     # 动态扩展
     # ------------------------------------------------------------------
-    def add_term(self, term: str, synonyms: List[str], type_: str = "custom") -> None:
+    def add_term(self, term: str, synonyms: list[str], type_: str = "custom") -> None:
         """运行时新增术语，供运营后台动态扩展词典。
 
         新增后会同步更新同义词反向索引。注意：本方法不持久化到磁盘，重启后
@@ -291,7 +303,7 @@ class TerminologyExpander:
     # 属性
     # ------------------------------------------------------------------
     @property
-    def terms(self) -> Dict[str, Dict]:
+    def terms(self) -> dict[str, dict]:
         """当前术语词典（只读视图）。"""
         return dict(self._terms)
 

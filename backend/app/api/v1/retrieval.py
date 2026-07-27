@@ -9,12 +9,13 @@
 2. /explain: 对单个 chunk 调用 ``explain_retrieval``, 输出 BM25 tf/idf 分项 + 术语命中;
 3. /cache/invalidate: 失效全部检索缓存 (仅 admin), 用于文档更新后强制重算.
 """
+
 from __future__ import annotations
 
-from typing import Any, Optional
+from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.security import get_current_user, require_role
@@ -30,6 +31,7 @@ router = APIRouter()
 # ======================== Schemas ========================
 class ChunkResult(BaseModel):
     """检索结果 chunk"""
+
     id: str = ""
     content: str = ""
     score: float = 0.0
@@ -43,6 +45,7 @@ class ChunkResult(BaseModel):
 
 class RetrievalDetail(BaseModel):
     """检索可解释性详情"""
+
     vector_count: int = 0
     bm25_count: int = 0
     rrf_fused_count: int = 0
@@ -51,11 +54,12 @@ class RetrievalDetail(BaseModel):
     reranker_available: bool = False
     rerank_method: str = "none"
     term_hits: list[str] = []
-    expanded_query: Optional[str] = None
+    expanded_query: str | None = None
 
 
 class SearchResponse(BaseModel):
     """检索响应"""
+
     chunks: list[ChunkResult] = []
     scores: list[float] = []
     latency_ms: float = 0.0
@@ -65,6 +69,7 @@ class SearchResponse(BaseModel):
 
 class ExplainResponse(BaseModel):
     """检索解释响应"""
+
     query: str
     expanded_query: str
     chunk_id: str
@@ -74,6 +79,7 @@ class ExplainResponse(BaseModel):
 
 class CacheInvalidateResponse(BaseModel):
     """缓存失效响应"""
+
     invalidated: int = 0
 
 
@@ -86,6 +92,7 @@ def _get_retriever() -> HybridRetriever:
     """
     try:
         from app.rag.retriever import get_retriever  # type: ignore
+
         return get_retriever()
     except ImportError:
         return HybridRetriever()
@@ -111,7 +118,9 @@ def _to_chunk_result(chunk: dict) -> ChunkResult:
 async def search(
     query: str = Query(..., min_length=1, max_length=2048, description="检索查询"),
     top_k: int = Query(5, ge=1, le=50, description="最终返回 chunk 数"),
-    recall_k: int = Query(50, ge=1, le=200, description="召回阶段每路返回数"),
+    recall_k: int = Query(
+        20, ge=1, le=200, description="召回阶段每路返回数 (默认 20, 平衡召回率与精排延迟)"
+    ),
     enable_rerank: bool = Query(True, description="是否启用 Cross-Encoder 精排"),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
@@ -152,13 +161,15 @@ async def search(
         expanded_query=detail_dict.get("expanded_query"),
     )
 
-    return SuccessResponse[SearchResponse](data=SearchResponse(
-        chunks=chunks,
-        scores=[float(s) for s in result.get("scores", []) or []],
-        latency_ms=float(result.get("latency_ms", 0.0) or 0.0),
-        cache_hit=bool(result.get("cache_hit", False)),
-        retrieval_detail=detail,
-    ))
+    return SuccessResponse[SearchResponse](
+        data=SearchResponse(
+            chunks=chunks,
+            scores=[float(s) for s in result.get("scores", []) or []],
+            latency_ms=float(result.get("latency_ms", 0.0) or 0.0),
+            cache_hit=bool(result.get("cache_hit", False)),
+            retrieval_detail=detail,
+        )
+    )
 
 
 @router.get("/explain", response_model=SuccessResponse[ExplainResponse])
@@ -182,13 +193,15 @@ async def explain(
             detail=f"检索解释失败: {exc}",
         )
 
-    return SuccessResponse[ExplainResponse](data=ExplainResponse(
-        query=result.get("query", query),
-        expanded_query=result.get("expanded_query", query),
-        chunk_id=result.get("chunk_id", chunk_id),
-        term_hits=list(result.get("term_hits", []) or []),
-        bm25_explanation=result.get("bm25_explanation", {}) or {},
-    ))
+    return SuccessResponse[ExplainResponse](
+        data=ExplainResponse(
+            query=result.get("query", query),
+            expanded_query=result.get("expanded_query", query),
+            chunk_id=result.get("chunk_id", chunk_id),
+            term_hits=list(result.get("term_hits", []) or []),
+            bm25_explanation=result.get("bm25_explanation", {}) or {},
+        )
+    )
 
 
 @router.post(
@@ -215,6 +228,8 @@ async def invalidate_cache(
 
     logger.info("检索缓存已失效: count={} by admin={}", count, admin.id)
 
-    return SuccessResponse[CacheInvalidateResponse](data=CacheInvalidateResponse(
-        invalidated=int(count or 0),
-    ))
+    return SuccessResponse[CacheInvalidateResponse](
+        data=CacheInvalidateResponse(
+            invalidated=int(count or 0),
+        )
+    )

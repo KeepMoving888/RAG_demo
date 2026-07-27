@@ -31,7 +31,7 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import random
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from app.config import settings
 from app.utils.logger import logger
@@ -72,20 +72,16 @@ class BGEM3Embedder:
 
     def __init__(
         self,
-        model_name: Optional[str] = None,
-        dimension: Optional[int] = None,
-        redis_url: Optional[str] = None,
+        model_name: str | None = None,
+        dimension: int | None = None,
+        redis_url: str | None = None,
     ) -> None:
-        self._model_name: str = (
-            model_name or getattr(settings, "embedding_model", "BAAI/bge-m3")
-        )
+        self._model_name: str = model_name or getattr(settings, "embedding_model", "BAAI/bge-m3")
         self._dimension: int = dimension or getattr(settings, "dimension", 1024)
-        self._redis_url: Optional[str] = redis_url or getattr(
-            settings, "redis_url", None
-        )
+        self._redis_url: str | None = redis_url or getattr(settings, "redis_url", None)
 
         # 懒加载的模型实例
-        self._model: Optional["SentenceTransformer"] = None
+        self._model: SentenceTransformer | None = None
         self._model_loaded: bool = False
         self._load_attempted: bool = False
 
@@ -107,9 +103,7 @@ class BGEM3Embedder:
         # 以支持真实向量检索 (P0 优化). 仅当 sentence-transformers 未安装
         # 或模型文件缺失时才降级为随机向量.
         if not _ST_AVAILABLE:
-            logger.warning(
-                "sentence-transformers 未安装，向量化将降级为随机向量"
-            )
+            logger.warning("sentence-transformers 未安装，向量化将降级为随机向量")
             return
 
         # 从 settings 读取设备 (cpu / cuda / cuda:0 等)
@@ -121,16 +115,15 @@ class BGEM3Embedder:
                 import torch
 
                 if not torch.cuda.is_available():
-                    logger.warning(
-                        "配置 device=%s 但 CUDA 不可用, 自动降级为 cpu", device
-                    )
+                    logger.warning("配置 device=%s 但 CUDA 不可用, 自动降级为 cpu", device)
                     device = "cpu"
                 else:
                     gpu_name = torch.cuda.get_device_name(0)
                     gpu_mem = torch.cuda.get_device_properties(0).total_memory / 1e9
                     logger.info(
                         "检测到 GPU: %s (%.1f GB), 将用于 BGE-M3 推理",
-                        gpu_name, gpu_mem,
+                        gpu_name,
+                        gpu_mem,
                     )
             except ImportError:
                 logger.warning("torch 未安装, 无法使用 CUDA, 降级为 cpu")
@@ -150,7 +143,9 @@ class BGEM3Embedder:
             self._model_loaded = True
             logger.info(
                 "BGE-M3 模型加载成功: %s, device=%s, 维度=%d",
-                self._model_name, device, self._dimension,
+                self._model_name,
+                device,
+                self._dimension,
             )
         except Exception as exc:  # noqa: BLE001
             logger.error("BGE-M3 模型加载失败 (device=%s)，降级为随机向量: %s", device, exc)
@@ -166,7 +161,8 @@ class BGEM3Embedder:
         if not self._redis_connected:
             try:
                 max_conn = int(getattr(settings, "redis_max_connections", 64))
-                pool = aioredis.BlockingConnectionPool.from_url(
+                # 用 ConnectionPool (非阻塞) 适配 async 上下文
+                pool = aioredis.ConnectionPool.from_url(
                     self._redis_url,
                     decode_responses=False,
                     max_connections=max_conn,
@@ -174,9 +170,13 @@ class BGEM3Embedder:
                 self._redis = aioredis.Redis(connection_pool=pool)
                 await self._redis.ping()
                 self._redis_connected = True
-                logger.debug("Embedder Redis 缓存已连接 (pool_max=%d)", max_conn)
+                logger.info(
+                    "Embedder Redis 缓存已连接: url={}, pool_max={}", self._redis_url, max_conn
+                )
             except Exception as exc:  # noqa: BLE001
-                logger.warning("Embedder Redis 连接失败，缓存降级: %s", exc)
+                logger.warning(
+                    "Embedder Redis 连接失败，缓存降级: url={}, err={}", self._redis_url, exc
+                )
                 self._redis = None
                 self._redis_connected = False
         return self._redis
@@ -186,7 +186,7 @@ class BGEM3Embedder:
         text_hash = hashlib.md5(text.encode("utf-8")).hexdigest()
         return f"{self._CACHE_PREFIX}{text_hash}"
 
-    async def _cache_get(self, text: str) -> Optional[List[float]]:
+    async def _cache_get(self, text: str) -> list[float] | None:
         """从 Redis 读取缓存的向量。"""
         redis = await self._get_redis()
         if redis is None:
@@ -201,7 +201,7 @@ class BGEM3Embedder:
             logger.debug("Embedder 缓存读取失败: %s", exc)
         return None
 
-    async def _cache_set(self, text: str, vector: List[float]) -> None:
+    async def _cache_set(self, text: str, vector: list[float]) -> None:
         """写入向量到 Redis。"""
         redis = await self._get_redis()
         if redis is None:
@@ -220,7 +220,7 @@ class BGEM3Embedder:
     # ------------------------------------------------------------------
     # 向量化
     # ------------------------------------------------------------------
-    async def embed(self, texts: List[str]) -> List[List[float]]:
+    async def embed(self, texts: list[str]) -> list[list[float]]:
         """批量向量化。
 
         Parameters
@@ -241,9 +241,9 @@ class BGEM3Embedder:
         if not texts:
             return []
 
-        results: List[Optional[List[float]]] = [None] * len(texts)
-        miss_indices: List[int] = []
-        miss_texts: List[str] = []
+        results: list[list[float] | None] = [None] * len(texts)
+        miss_indices: list[int] = []
+        miss_texts: list[str] = []
 
         # 1. 查缓存
         for i, text in enumerate(texts):
@@ -260,16 +260,14 @@ class BGEM3Embedder:
 
         # 3. 未命中的走模型推理
         self._load_model()
-        new_vectors: List[List[float]] = []
+        new_vectors: list[list[float]] = []
 
         if self._model_loaded and self._model is not None:
             try:
                 # sentence-transformers 的 encode 是同步 CPU 密集操作，
                 # 放到线程池避免阻塞事件循环
                 loop = asyncio.get_event_loop()
-                raw_vectors = await loop.run_in_executor(
-                    None, self._model.encode, miss_texts
-                )
+                raw_vectors = await loop.run_in_executor(None, self._model.encode, miss_texts)
                 new_vectors = [list(v) for v in raw_vectors]
                 logger.debug("BGE-M3 推理完成: %d 条文本", len(miss_texts))
             except Exception as exc:  # noqa: BLE001
@@ -288,7 +286,7 @@ class BGEM3Embedder:
 
         return results  # type: ignore[return-value]
 
-    async def embed_one(self, text: str) -> List[float]:
+    async def embed_one(self, text: str) -> list[float]:
         """单文本向量化（``embed`` 的便捷封装）。"""
         vectors = await self.embed([text])
         return vectors[0] if vectors else self._random_vector(text)
@@ -296,7 +294,7 @@ class BGEM3Embedder:
     # ------------------------------------------------------------------
     # 降级
     # ------------------------------------------------------------------
-    def _random_vector(self, text: str) -> List[float]:
+    def _random_vector(self, text: str) -> list[float]:
         """生成固定 seed 的随机向量（降级用）。
 
         使用文本的 md5 作为随机种子，确保同一文本始终映射到同一向量，
@@ -326,7 +324,7 @@ class BGEM3Embedder:
         return True  # 总是可用（可降级为随机向量）
 
     @property
-    def model_info(self) -> Dict[str, Any]:
+    def model_info(self) -> dict[str, Any]:
         """模型信息。"""
         return {
             "model_name": self._model_name,
@@ -339,7 +337,7 @@ class BGEM3Embedder:
 # ---------------------------------------------------------------------------
 # 单例
 # ---------------------------------------------------------------------------
-_embedder_instance: Optional[BGEM3Embedder] = None
+_embedder_instance: BGEM3Embedder | None = None
 
 
 def get_embedder() -> BGEM3Embedder:

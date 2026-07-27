@@ -54,7 +54,7 @@ warning，保证 BM25 通路仍可用，检索链路不中断。
 from __future__ import annotations
 
 import asyncio
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from app.config import settings
 from app.utils.logger import logger
@@ -111,10 +111,10 @@ class MilvusStore:
 
     def __init__(
         self,
-        host: Optional[str] = None,
-        port: Optional[int] = None,
-        collection_name: Optional[str] = None,
-        dimension: Optional[int] = None,
+        host: str | None = None,
+        port: int | None = None,
+        collection_name: str | None = None,
+        dimension: int | None = None,
     ) -> None:
         self._host: str = host or getattr(settings, "milvus_host", "localhost")
         self._port: int = port or getattr(settings, "milvus_port", 19530)
@@ -123,7 +123,7 @@ class MilvusStore:
         )
         self._dimension: int = dimension or getattr(settings, "dimension", 1024)
 
-        self._collection: Optional["Collection"] = None
+        self._collection: Collection | None = None
         self._connected: bool = False
         self._initialized: bool = False
         # 已创建的 partition 集合（避免重复 ensure）
@@ -148,16 +148,14 @@ class MilvusStore:
                 port=str(self._port),
             )
             self._connected = True
-            logger.info(
-                "Milvus 连接成功: %s:%s", self._host, self._port
-            )
+            logger.info("Milvus 连接成功: %s:%s", self._host, self._port)
             return True
         except Exception as exc:  # noqa: BLE001
             logger.warning("Milvus 连接失败，向量检索降级: %s", exc)
             self._connected = False
             return False
 
-    def _build_schema(self) -> "CollectionSchema":
+    def _build_schema(self) -> CollectionSchema:
         """构造 Collection schema。"""
         fields = [
             FieldSchema(name="id", dtype=DataType.INT64, is_primary=True, auto_id=True),
@@ -197,9 +195,7 @@ class MilvusStore:
             loop = asyncio.get_event_loop()
             await loop.run_in_executor(None, self._init_collection_sync)
             self._initialized = True
-            logger.info(
-                "Milvus Collection 初始化完成: %s", self._collection_name
-            )
+            logger.info("Milvus Collection 初始化完成: %s", self._collection_name)
             return True
         except Exception as exc:  # noqa: BLE001
             logger.error("Milvus Collection 初始化失败: %s", exc)
@@ -223,9 +219,7 @@ class MilvusStore:
         existing_partitions = []
         try:
             # partitions 返回 Partition 对象列表, 取 name 做字符串比对
-            existing_partitions = [
-                getattr(p, "name", str(p)) for p in self._collection.partitions
-            ]
+            existing_partitions = [getattr(p, "name", str(p)) for p in self._collection.partitions]
         except Exception as part_err:  # noqa: BLE001
             logger.debug("读取 partitions 列表失败: %s", part_err)
 
@@ -234,9 +228,7 @@ class MilvusStore:
                 self._collection.create_partition(self.PUBLIC_PARTITION)
                 logger.debug("Milvus partition 已创建: %s", self.PUBLIC_PARTITION)
             except Exception as create_err:  # noqa: BLE001
-                logger.debug(
-                    "创建 partition 失败 (可能已存在): %s", create_err
-                )
+                logger.debug("创建 partition 失败 (可能已存在): %s", create_err)
         self._partitions.add(self.PUBLIC_PARTITION)
 
         # 创建索引（若不存在）—— 必须在 load() 之前完成，否则 load 会因
@@ -248,9 +240,7 @@ class MilvusStore:
                 "params": {"nlist": self._nlist},
             }
             try:
-                self._collection.create_index(
-                    field_name="embedding", index_params=index_params
-                )
+                self._collection.create_index(field_name="embedding", index_params=index_params)
                 logger.info(
                     "Milvus 索引已创建: %s, metric=%s, nlist=%d",
                     self.INDEX_TYPE,
@@ -296,9 +286,7 @@ class MilvusStore:
 
         try:
             loop = asyncio.get_event_loop()
-            await loop.run_in_executor(
-                None, self._ensure_partition_sync, partition_name
-            )
+            await loop.run_in_executor(None, self._ensure_partition_sync, partition_name)
             self._partitions.add(partition_name)
             return True
         except Exception as exc:  # noqa: BLE001
@@ -323,7 +311,8 @@ class MilvusStore:
             except Exception as create_err:  # noqa: BLE001
                 logger.debug(
                     "创建 partition '%s' 失败 (可能已存在): %s",
-                    partition_name, create_err,
+                    partition_name,
+                    create_err,
                 )
 
     # ------------------------------------------------------------------
@@ -331,9 +320,9 @@ class MilvusStore:
     # ------------------------------------------------------------------
     async def insert_chunks(
         self,
-        chunks: List[Dict[str, Any]],
-        embeddings: List[List[float]],
-        department_id: Optional[int],
+        chunks: list[dict[str, Any]],
+        embeddings: list[list[float]],
+        department_id: int | None,
     ) -> int:
         """批量插入 chunk 向量。
 
@@ -374,13 +363,13 @@ class MilvusStore:
 
         # 构造插入数据
         data = [
-            [c.get("chunk_id", "") for c in chunks],          # chunk_id
-            [c.get("document_id", 0) for c in chunks],         # document_id
+            [c.get("chunk_id", "") for c in chunks],  # chunk_id
+            [c.get("document_id", 0) for c in chunks],  # document_id
             [department_id if department_id is not None else 0 for _ in chunks],  # department_id
             [str(c.get("content", ""))[:4096] for c in chunks],  # content
             [str(c.get("heading_path", ""))[:512] for c in chunks],  # heading_path
-            [int(c.get("page_number", 0)) for c in chunks],    # page_number
-            embeddings,                                          # embedding
+            [int(c.get("page_number", 0)) for c in chunks],  # page_number
+            embeddings,  # embedding
         ]
 
         try:
@@ -391,15 +380,13 @@ class MilvusStore:
                 data,
                 partition_name,
             )
-            logger.info(
-                "Milvus 插入完成: %d 条, partition=%s", len(chunks), partition_name
-            )
+            logger.info("Milvus 插入完成: %d 条, partition=%s", len(chunks), partition_name)
             return len(chunks)
         except Exception as exc:  # noqa: BLE001
             logger.error("Milvus 插入失败: %s", exc)
             return 0
 
-    def _insert_sync(self, data: List[List[Any]], partition_name: str) -> None:
+    def _insert_sync(self, data: list[list[Any]], partition_name: str) -> None:
         """同步插入。"""
         self._collection.insert(data, partition_name=partition_name)  # type: ignore[union-attr]
         # 插入后 flush 使数据可见
@@ -410,12 +397,12 @@ class MilvusStore:
     # ------------------------------------------------------------------
     async def search(
         self,
-        query_embedding: List[float],
-        department_id: Optional[int],
+        query_embedding: list[float],
+        department_id: int | None,
         top_k: int,
         recall_k: int,
         search_all_partitions: bool = False,
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """向量检索（分区隔离）。
 
         只搜索 ``_public`` + 用户部门 partition，实现权限隔离。
@@ -494,12 +481,12 @@ class MilvusStore:
 
     def _search_sync(
         self,
-        query_vectors: List[List[float]],
-        partition_names: List[str],
-        search_params: Dict[str, Any],
-        output_fields: List[str],
+        query_vectors: list[list[float]],
+        partition_names: list[str],
+        search_params: dict[str, Any],
+        output_fields: list[str],
         limit: int,
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """同步检索。"""
         search_results = self._collection.search(  # type: ignore[union-attr]
             data=query_vectors,
@@ -510,7 +497,7 @@ class MilvusStore:
             output_fields=output_fields,
         )
 
-        results: List[Dict[str, Any]] = []
+        results: list[dict[str, Any]] = []
         for hits in search_results:
             for hit in hits:
                 entity = hit.entity.to_dict() if hasattr(hit.entity, "to_dict") else {}
@@ -518,9 +505,11 @@ class MilvusStore:
                 row = {
                     "chunk_id": entity.get("chunk_id", "") or hit.entity.get("chunk_id", ""),
                     "document_id": entity.get("document_id", 0) or hit.entity.get("document_id", 0),
-                    "department_id": entity.get("department_id", 0) or hit.entity.get("department_id", 0),
+                    "department_id": entity.get("department_id", 0)
+                    or hit.entity.get("department_id", 0),
                     "content": entity.get("content", "") or hit.entity.get("content", ""),
-                    "heading_path": entity.get("heading_path", "") or hit.entity.get("heading_path", ""),
+                    "heading_path": entity.get("heading_path", "")
+                    or hit.entity.get("heading_path", ""),
                     "page_number": entity.get("page_number", 0) or hit.entity.get("page_number", 0),
                     "score": float(hit.score),
                     "source": "vector",
@@ -551,9 +540,7 @@ class MilvusStore:
 
         try:
             loop = asyncio.get_event_loop()
-            count = await loop.run_in_executor(
-                None, self._delete_sync, document_id
-            )
+            count = await loop.run_in_executor(None, self._delete_sync, document_id)
             logger.info("Milvus 按文档删除: document_id=%d, 删除条数=%s", document_id, count)
             return count if isinstance(count, int) else 0
         except Exception as exc:  # noqa: BLE001

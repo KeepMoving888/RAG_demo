@@ -68,8 +68,10 @@ tmp/
 backend/scripts/_*.py
 backend/scripts/_*.ps1
 backend/scripts/_*.bat
+backend/_*.py
 backend/_*.ps1
 backend/_*.bat
+_*.py
 _*.ps1
 _*.bat
 

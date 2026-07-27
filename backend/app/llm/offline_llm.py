@@ -15,7 +15,7 @@
 import json
 import re
 import time
-from typing import AsyncIterator, Optional
+from collections.abc import AsyncIterator
 
 from app.llm.base import BaseLLM, LLMResponse
 from app.utils.logger import logger
@@ -33,9 +33,9 @@ class OfflineLLM(BaseLLM):
     async def agenerate(
         self,
         messages: list[dict],
-        temperature: Optional[float] = None,
-        max_tokens: Optional[int] = None,
-        response_format: Optional[dict] = None,
+        temperature: float | None = None,
+        max_tokens: int | None = None,
+        response_format: dict | None = None,
     ) -> LLMResponse:
         start = time.time()
 
@@ -59,9 +59,7 @@ class OfflineLLM(BaseLLM):
             latency_ms=(time.time() - start) * 1000,
         )
 
-    async def agenerate_stream(
-        self, messages: list[dict], **kwargs
-    ) -> AsyncIterator[str]:
+    async def agenerate_stream(self, messages: list[dict], **kwargs) -> AsyncIterator[str]:
         resp = await self.agenerate(messages, **kwargs)
         # 仿流式: 按句号切分
         for chunk in re.split(r"(?<=[。\.!\?])\s+", resp.text):
@@ -83,7 +81,8 @@ class OfflineLLM(BaseLLM):
                 # 解析上下文块
                 ctx_match = re.search(
                     r"\[RETRIEVED_CONTEXT\](.*?)\[/RETRIEVED_CONTEXT\]",
-                    content, re.DOTALL,
+                    content,
+                    re.DOTALL,
                 )
                 if ctx_match:
                     for line in ctx_match.group(1).strip().split("\n"):
@@ -127,10 +126,13 @@ class OfflineLLM(BaseLLM):
 
         # 产品名模式: 大写字母 + 数字 (e.g. eMMC, P300)
         for m in re.finditer(r"\b([A-Z]{2,}-?[A-Z0-9]{2,})\b", text):
-            entities.append({
-                "name": m.group(1), "type": "Product",
-                "properties": {"matched_text": m.group(0)},
-            })
+            entities.append(
+                {
+                    "name": m.group(1),
+                    "type": "Product",
+                    "properties": {"matched_text": m.group(0)},
+                }
+            )
 
         # 部门名 (中文 + 部/处/中心)
         for m in re.finditer(r"([\u4e00-\u9fa5]{2,8}(?:部|处|中心|科|组))", text):
@@ -162,22 +164,31 @@ class OfflineLLM(BaseLLM):
         departments = re.findall(r"([\u4e00-\u9fa5]{2,8}(?:部|处|中心))", prompt)
 
         if products:
-            return json.dumps({
-                "cypher": (
-                    f"MATCH (p:Product {{name: '{products[0]}'}})-[r]-(n) "
-                    f"RETURN p, type(r) AS relation, n LIMIT 20"
-                ),
-            }, ensure_ascii=False)
+            return json.dumps(
+                {
+                    "cypher": (
+                        f"MATCH (p:Product {{name: '{products[0]}'}})-[r]-(n) "
+                        f"RETURN p, type(r) AS relation, n LIMIT 20"
+                    ),
+                },
+                ensure_ascii=False,
+            )
 
         if departments:
-            return json.dumps({
-                "cypher": (
-                    f"MATCH (d:Department {{name: '{departments[0]}'}})-[r]-(n) "
-                    f"RETURN d, type(r) AS relation, n LIMIT 20"
-                ),
-            }, ensure_ascii=False)
+            return json.dumps(
+                {
+                    "cypher": (
+                        f"MATCH (d:Department {{name: '{departments[0]}'}})-[r]-(n) "
+                        f"RETURN d, type(r) AS relation, n LIMIT 20"
+                    ),
+                },
+                ensure_ascii=False,
+            )
 
-        return json.dumps({
-            "cypher": "MATCH (n) RETURN n LIMIT 10",
-            "note": "未识别明确实体, 返回默认查询",
-        }, ensure_ascii=False)
+        return json.dumps(
+            {
+                "cypher": "MATCH (n) RETURN n LIMIT 10",
+                "note": "未识别明确实体, 返回默认查询",
+            },
+            ensure_ascii=False,
+        )

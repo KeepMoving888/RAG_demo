@@ -12,13 +12,14 @@ pytest 公共 fixtures
 - MILVUS_HOST=invalid: Milvus 连接失败, 检索降级为 BM25 only;
 - Redis 不可用: 缓存 / 限流 / 对话上下文均降级, 业务可用.
 """
+
 from __future__ import annotations
 
 import asyncio
 import os
 import sys
+from collections.abc import AsyncGenerator
 from pathlib import Path
-from typing import AsyncGenerator
 
 import pytest
 import pytest_asyncio
@@ -32,6 +33,9 @@ from sqlalchemy.ext.asyncio import (
 _BACKEND_ROOT = Path(__file__).resolve().parent.parent
 if str(_BACKEND_ROOT) not in sys.path:
     sys.path.insert(0, str(_BACKEND_ROOT))
+
+# 收集阶段忽略 Locust 压测脚本 (它依赖 locust 运行时, 不是单元测试)
+collect_ignore = ["load_test.py"]
 
 
 # ======================== 环境变量 (最早设置) ========================
@@ -93,7 +97,10 @@ async def db_session() -> AsyncGenerator[AsyncSession, None]:
         await conn.run_sync(Base.metadata.create_all)
 
     SessionLocal = async_sessionmaker(
-        bind=engine, class_=AsyncSession, expire_on_commit=False, autoflush=False,
+        bind=engine,
+        class_=AsyncSession,
+        expire_on_commit=False,
+        autoflush=False,
     )
 
     async with SessionLocal() as session:
@@ -146,7 +153,10 @@ def client(mock_settings):
         loop.run_until_complete(_init())
 
     TestSessionLocal = async_sessionmaker(
-        bind=test_engine, class_=AsyncSession, expire_on_commit=False, autoflush=False,
+        bind=test_engine,
+        class_=AsyncSession,
+        expire_on_commit=False,
+        autoflush=False,
     )
 
     async def _override_get_db() -> AsyncGenerator[AsyncSession, None]:
@@ -165,9 +175,11 @@ def client(mock_settings):
             yield c
     finally:
         app.dependency_overrides.clear()
+
         # 清理测试引擎
         async def _dispose():
             await test_engine.dispose()
+
         try:
             asyncio.get_event_loop().run_until_complete(_dispose())
         except Exception:

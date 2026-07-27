@@ -8,17 +8,18 @@ LLM 抽象基类
 """
 
 from abc import ABC, abstractmethod
+from collections.abc import AsyncIterator
 from dataclasses import dataclass, field
-from typing import AsyncIterator, Optional
 
 
 @dataclass
 class LLMResponse:
     """LLM 响应"""
+
     text: str
     model: str = ""
     usage: dict = field(default_factory=dict)
-    raw: Optional[dict] = None
+    raw: dict | None = None
     latency_ms: float = 0.0
 
 
@@ -36,9 +37,9 @@ class BaseLLM(ABC):
     async def agenerate(
         self,
         messages: list[dict],
-        temperature: Optional[float] = None,
-        max_tokens: Optional[int] = None,
-        response_format: Optional[dict] = None,
+        temperature: float | None = None,
+        max_tokens: int | None = None,
+        response_format: dict | None = None,
     ) -> LLMResponse:
         """同步生成"""
         ...
@@ -46,8 +47,8 @@ class BaseLLM(ABC):
     async def agenerate_stream(
         self,
         messages: list[dict],
-        temperature: Optional[float] = None,
-        max_tokens: Optional[int] = None,
+        temperature: float | None = None,
+        max_tokens: int | None = None,
     ) -> AsyncIterator[str]:
         """流式生成 (默认降级为一次性返回)"""
         resp = await self.agenerate(messages, temperature, max_tokens)
@@ -60,11 +61,13 @@ class BaseLLM(ABC):
             response_format={"type": "json_object"},
         )
         import json
+
         try:
             return json.loads(resp.text)
         except json.JSONDecodeError:
             # 兼容模型返回带 markdown 代码块的情况
             import re
+
             match = re.search(r"\{[\s\S]*\}", resp.text)
             if match:
                 return json.loads(match.group(0))

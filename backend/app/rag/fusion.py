@@ -39,16 +39,16 @@ methods*. SIGIR 2009.
 
 from __future__ import annotations
 
-from typing import Dict, List, Optional, Sequence
+from collections.abc import Sequence
 
 from app.utils.logger import logger
 
 
 def reciprocal_rank_fusion(
-    ranked_lists: List[List[Dict]],
+    ranked_lists: list[list[dict]],
     k: int = 60,
     key_field: str = "content",
-) -> List[Dict]:
+) -> list[dict]:
     """倒数排名融合（RRF）。
 
     将多路检索的排序列表融合为一个综合排序列表。
@@ -80,7 +80,7 @@ def reciprocal_rank_fusion(
         return []
 
     # 融合分数累加器：key -> {"rrf_score": float, "doc": dict, "sources": [...]}
-    fused: Dict[str, Dict] = {}
+    fused: dict[str, dict] = {}
 
     for list_idx, ranked in enumerate(ranked_lists):
         for rank, doc in enumerate(ranked, start=1):
@@ -108,10 +108,8 @@ def reciprocal_rank_fusion(
             )
 
     # 按融合分数降序排列
-    result: List[Dict] = []
-    for item in sorted(
-        fused.values(), key=lambda x: x["rrf_score"], reverse=True
-    ):
+    result: list[dict] = []
+    for item in sorted(fused.values(), key=lambda x: x["rrf_score"], reverse=True):
         doc = item["doc"]
         doc["rrf_score"] = round(item["rrf_score"], 6)
         doc["source_scores"] = item["sources"]
@@ -129,10 +127,10 @@ def reciprocal_rank_fusion(
 
 
 def weighted_fusion(
-    ranked_lists: Sequence[List[Dict]],
+    ranked_lists: Sequence[list[dict]],
     weights: Sequence[float],
     key_field: str = "content",
-) -> List[Dict]:
+) -> list[dict]:
     """加权融合（对比基线，默认不使用）。
 
     对各路分数做 min-max 归一化后按权重相加。保留此方法用于消融实验对比
@@ -168,7 +166,7 @@ def weighted_fusion(
     norm_weights = [w / total_w for w in weights] if total_w > 0 else list(weights)
 
     # 各路分数 min-max 归一化
-    normalized_lists: List[List[Dict]] = []
+    normalized_lists: list[list[dict]] = []
     for ranked in ranked_lists:
         if not ranked:
             normalized_lists.append([])
@@ -176,14 +174,11 @@ def weighted_fusion(
         scores = [d.get("score", 0.0) for d in ranked]
         min_s, max_s = min(scores), max(scores)
         denom = (max_s - min_s) if (max_s - min_s) > 1e-12 else 1.0
-        norm_list = [
-            {**d, "_norm_score": (d.get("score", 0.0) - min_s) / denom}
-            for d in ranked
-        ]
+        norm_list = [{**d, "_norm_score": (d.get("score", 0.0) - min_s) / denom} for d in ranked]
         normalized_lists.append(norm_list)
 
     # 累加加权分数
-    fused: Dict[str, Dict] = {}
+    fused: dict[str, dict] = {}
     for list_idx, (norm_list, w) in enumerate(zip(normalized_lists, norm_weights)):
         for doc in norm_list:
             doc_key = doc.get(key_field) or doc.get("id") or str(id(doc))
@@ -194,17 +189,13 @@ def weighted_fusion(
                 fused[doc_key] = {"doc": dict(doc), "weighted_score": 0.0}
             fused[doc_key]["weighted_score"] += contribution
 
-    result: List[Dict] = []
-    for item in sorted(
-        fused.values(), key=lambda x: x["weighted_score"], reverse=True
-    ):
+    result: list[dict] = []
+    for item in sorted(fused.values(), key=lambda x: x["weighted_score"], reverse=True):
         doc = item["doc"]
         doc.pop("_norm_score", None)
         doc["weighted_score"] = round(item["weighted_score"], 6)
         doc["score"] = doc["weighted_score"]
         result.append(doc)
 
-    logger.debug(
-        "加权融合完成: 融合后文档数=%d，权重=%s", len(result), norm_weights
-    )
+    logger.debug("加权融合完成: 融合后文档数=%d，权重=%s", len(result), norm_weights)
     return result

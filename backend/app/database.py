@@ -8,8 +8,8 @@ Enterprise RAG Knowledge Base - 异步数据库引擎
 4. 启动时自动建表 (开发模式), 生产环境使用 Alembic 迁移
 """
 
+from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
-from typing import AsyncGenerator
 
 from sqlalchemy.ext.asyncio import (
     AsyncSession,
@@ -18,7 +18,6 @@ from sqlalchemy.ext.asyncio import (
 )
 
 from app.config import settings
-
 
 # ======================== 主引擎 ========================
 # 连接池大小从 settings 读取, 多 Worker 下可整体放大

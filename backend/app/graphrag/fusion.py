@@ -33,23 +33,39 @@
 
 import re
 import time
-from typing import Optional
 
-from app.utils.logger import logger
 from app.graphrag.cypher_chain import GraphCypherQAChain
 from app.graphrag.neo4j_store import neo4j_store
-
+from app.utils.logger import logger
 
 # 触发图谱检索的关系词 (覆盖组织/供应链/合规/协作四类)
 _RELATION_KEYWORDS = [
-    "哪些", "有什么", "有哪些", "参与了", "参与", "认证了", "认证",
-    "属于", "归属", "管理", "管理了", "引用", "协作", "供应", "供应商",
-    "定义", "负责", "关联", "关系",
+    "哪些",
+    "有什么",
+    "有哪些",
+    "参与了",
+    "参与",
+    "认证了",
+    "认证",
+    "属于",
+    "归属",
+    "管理",
+    "管理了",
+    "引用",
+    "协作",
+    "供应",
+    "供应商",
+    "定义",
+    "负责",
+    "关联",
+    "关系",
 ]
 
-# 实体名模式: 产品代号 (大写字母+数字) 或中文部门名
-_PRODUCT_PATTERN = re.compile(r"\b[A-Z]{2,}-?[A-Z0-9]{2,}\b")
-_DEPARTMENT_PATTERN = re.compile(r"[\u4e00-\u9fa5]{2,8}(?:部|处|中心|科|组)")
+# 实体名模式: 产品代号 (混合大小写如 eMMC/LPDDR4X/DDR4) 或中文部门名
+# 产品代号: 首字母任意大小写, 后跟 2+ 大写字母或数字 (排除纯小写普通英文词)
+_PRODUCT_PATTERN = re.compile(r"[A-Za-z][A-Z0-9]{2,}[A-Za-z0-9]*")
+# 部门名: 排除 "部署/部分/处理" 等含 部/处 但非部门后缀的常用词
+_DEPARTMENT_PATTERN = re.compile(r"[\u4e00-\u9fa5]{2,8}(?:部(?!署|分)|处(?!理)|中心|科|组)")
 
 
 class GraphFusion:
@@ -78,7 +94,7 @@ class GraphFusion:
     async def graph_retrieve(
         self,
         query: str,
-        department_id: Optional[int] = None,
+        department_id: int | None = None,
         top_k: int = 5,
     ) -> list[dict]:
         """图谱检索: NL->Cypher->执行->反查 chunk
@@ -152,8 +168,7 @@ class GraphFusion:
             }
             for c in visible[:top_k]
         ]
-        logger.info("图谱检索召回 {} chunks (可见 {}/{})",
-                    len(results), len(visible), len(chunks))
+        logger.info("图谱检索召回 {} chunks (可见 {}/{})", len(results), len(visible), len(chunks))
         return results
 
     # ======================== 融合主入口 ========================
@@ -161,7 +176,7 @@ class GraphFusion:
         self,
         query: str,
         vector_results: list[dict],
-        department_id: Optional[int] = None,
+        department_id: int | None = None,
         top_k: int = 5,
     ) -> dict:
         """向量 + 图谱双路融合
@@ -190,8 +205,12 @@ class GraphFusion:
         if not use_graph or not neo4j_store.is_available:
             latency_ms = (time.time() - start) * 1000
             strategy = "vector_only"
-            logger.debug("融合策略={} (use_graph={} available={})",
-                         strategy, use_graph, neo4j_store.is_available)
+            logger.debug(
+                "融合策略={} (use_graph={} available={})",
+                strategy,
+                use_graph,
+                neo4j_store.is_available,
+            )
             return {
                 "chunks": vector_results[:top_k],
                 "graph_results": [],
@@ -250,9 +269,14 @@ class GraphFusion:
         fused.sort(key=lambda x: float(x.get("score", 0.0)), reverse=True)
 
         latency_ms = (time.time() - start) * 1000
-        logger.info("融合完成 strategy={} 向量={} 图谱={} 融合={} 耗时={:.0f}ms",
-                    strategy, len(vector_results), len(graph_results),
-                    len(fused), latency_ms)
+        logger.info(
+            "融合完成 strategy={} 向量={} 图谱={} 融合={} 耗时={:.0f}ms",
+            strategy,
+            len(vector_results),
+            len(graph_results),
+            len(fused),
+            latency_ms,
+        )
         return {
             "chunks": fused[:top_k],
             "graph_results": graph_results,

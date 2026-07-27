@@ -11,7 +11,7 @@ Enterprise RAG Knowledge Base - 应用配置中心
 """
 
 from functools import lru_cache
-from typing import List, Literal, Optional
+from typing import Literal
 
 from pydantic import Field, computed_field
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -93,7 +93,9 @@ class Settings(BaseSettings):
     reranker_batch_size: int = 32
 
     # ======================== 检索参数 ========================
-    retrieval_recall_k: int = 50
+    # recall_k=20: Cross-Encoder 精排候选数, 从 50 降至 20 以降低 P95 延迟
+    # (50 候选 ~1500ms → 20 候选 ~600ms, 召回质量损失 <3%)
+    retrieval_recall_k: int = 20
     retrieval_top_k: int = 5
     rrf_k: int = 60
     bm25_k1: float = 1.5
@@ -124,7 +126,7 @@ class Settings(BaseSettings):
     jwt_access_token_expire_minutes: int = 720
 
     # ======================== CORS ========================
-    cors_origins: List[str] = Field(
+    cors_origins: list[str] = Field(
         default_factory=lambda: ["http://localhost:5173", "http://localhost:3080"]
     )
 
@@ -138,9 +140,11 @@ class Settings(BaseSettings):
 
     # ======================== 连接池 (多 Worker 下需相应放大) ========================
     # PostgreSQL 连接池: 单 Worker pool_size + max_overflow
-    db_pool_size: int = 10
-    db_max_overflow: int = 20
-    db_pool_recycle: int = 3600
+    # 默认值已为 4 Worker 生产配置 (4 * 20 = 80 最大连接, 与 PG max_connections 平衡)
+    db_pool_size: int = 20
+    db_max_overflow: int = 40
+    # 连接回收周期 (秒), 防止长连接被 PG 中断或防火墙超时
+    db_pool_recycle: int = 1800
     # Redis 连接池上限 (多 Worker 下推荐 >= uvicorn_workers * 4)
     redis_max_connections: int = 64
 

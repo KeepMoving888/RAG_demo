@@ -32,7 +32,7 @@
 import json
 import time
 import uuid
-from typing import Any, Optional
+from typing import Any
 
 from app.config import settings
 from app.utils.logger import logger
@@ -77,9 +77,7 @@ class DialogContextManager:
             try:
                 import redis.asyncio as aioredis
 
-                cls._redis = aioredis.from_url(
-                    settings.redis_url, decode_responses=True
-                )
+                cls._redis = aioredis.from_url(settings.redis_url, decode_responses=True)
             except Exception as e:  # pragma: no cover - 依赖环境
                 cls._redis_broken = True
                 logger.warning("Redis 连接失败, 对话上下文降级为进程内存储: {}", str(e))
@@ -90,9 +88,7 @@ class DialogContextManager:
         return f"{self.KEY_PREFIX}{session_id}"
 
     # ======================== 会话生命周期 ========================
-    async def create_session(
-        self, user_id: int, department_id: Optional[int]
-    ) -> str:
+    async def create_session(self, user_id: int, department_id: int | None) -> str:
         """
         创建新会话, 返回 uuid 形式的 session_id.
 
@@ -124,11 +120,13 @@ class DialogContextManager:
 
         logger.debug(
             "创建对话会话: session_id={} user_id={} dept={}",
-            session_id, user_id, department_id,
+            session_id,
+            user_id,
+            department_id,
         )
         return session_id
 
-    async def _ensure_pg_session(self, session_id: str) -> Optional[int]:
+    async def _ensure_pg_session(self, session_id: str) -> int | None:
         """
         惰性确保 PostgreSQL QASession 行存在, 返回其主键 id.
         失败返回 None (持久化将跳过, 但不影响在线问答).
@@ -163,9 +161,7 @@ class DialogContextManager:
 
             # 回写 pg_session_id 到 Redis (持久化映射)
             await self._set_pg_session_id(session_id, pg_id)
-            logger.debug(
-                "惰性创建 QASession: session_id={} pg_id={}", session_id, pg_id
-            )
+            logger.debug("惰性创建 QASession: session_id={} pg_id={}", session_id, pg_id)
             return pg_id
         except Exception as e:
             logger.warning("创建 QASession 失败, 跳过持久化: {}", str(e))
@@ -209,20 +205,14 @@ class DialogContextManager:
                 pass
         self._fallback_store.pop(session_id, None)
 
-        logger.info(
-            "会话已归档: session_id={} turns={}", session_id, turn_count
-        )
+        logger.info("会话已归档: session_id={} turns={}", session_id, turn_count)
 
     # ======================== 消息追加 ========================
     async def add_user_message(self, session_id: str, query: str) -> None:
         """追加一轮用户消息."""
-        await self._append_turn(
-            session_id, {"role": "user", "content": query}
-        )
+        await self._append_turn(session_id, {"role": "user", "content": query})
 
-    async def add_assistant_message(
-        self, session_id: str, answer: str, citations: list
-    ) -> None:
+    async def add_assistant_message(self, session_id: str, answer: str, citations: list) -> None:
         """追加一轮助手消息 (含引用信息)."""
         await self._append_turn(
             session_id,
@@ -251,7 +241,8 @@ class DialogContextManager:
         if len(turns) >= self._max_turns:
             logger.info(
                 "会话达到最大轮数上限 ({}), 触发归档: {}",
-                self._max_turns, session_id,
+                self._max_turns,
+                session_id,
             )
             # 先保存完整轮数, 使归档时的 turn_count 准确
             await self._save_turns(session_id, turns)
@@ -282,10 +273,8 @@ class DialogContextManager:
             return turns
 
         # 锚点: 首条 user 消息 (会话开篇通常是用户提问)
-        first_anchor = next(
-            (t for t in turns if t.get("role") == "user"), turns[0]
-        )
-        recent = turns[-self._window_size:]
+        first_anchor = next((t for t in turns if t.get("role") == "user"), turns[0])
+        recent = turns[-self._window_size :]
 
         # 拼接并去重 (避免锚点与 recent 末尾重复)
         pruned: list[dict] = [first_anchor]
@@ -298,9 +287,7 @@ class DialogContextManager:
         return pruned
 
     # ======================== 上下文读取 ========================
-    async def get_context(
-        self, session_id: str, max_turns: Optional[int] = None
-    ) -> list[dict]:
+    async def get_context(self, session_id: str, max_turns: int | None = None) -> list[dict]:
         """
         返回滑动窗口内的消息列表 (已含锚点).
 
@@ -314,7 +301,7 @@ class DialogContextManager:
         pruned = self._apply_window(turns)
         if max_turns is not None and max_turns > 0 and len(pruned) > max_turns:
             first = pruned[0]
-            recent = pruned[-(max_turns - 1):] if max_turns > 1 else []
+            recent = pruned[-(max_turns - 1) :] if max_turns > 1 else []
             pruned = [first] + recent
         return pruned
 
@@ -338,7 +325,7 @@ class DialogContextManager:
             return 0
         return len(data.get("turns", []))
 
-    async def get_department_id(self, session_id: str) -> Optional[int]:
+    async def get_department_id(self, session_id: str) -> int | None:
         """返回会话的部门快照 (权限隔离用)."""
         data = await self._load(session_id)
         if data is None:
@@ -346,7 +333,7 @@ class DialogContextManager:
         return data.get("department_id")
 
     # ======================== 存储原语 ========================
-    async def _load(self, session_id: str) -> Optional[dict]:
+    async def _load(self, session_id: str) -> dict | None:
         """加载并解码会话 (Redis Hash 字符串 -> Python 类型; 降级读进程内 dict)."""
         redis = await self._get_redis()
         if redis is not None:
@@ -381,9 +368,7 @@ class DialogContextManager:
             self._fallback_store[session_id] = data
         data["turns"] = turns
 
-    async def _set_pg_session_id(
-        self, session_id: str, pg_id: int
-    ) -> None:
+    async def _set_pg_session_id(self, session_id: str, pg_id: int) -> None:
         """回写 pg_session_id 映射."""
         redis = await self._get_redis()
         if redis is not None:
@@ -401,9 +386,7 @@ class DialogContextManager:
             self._fallback_store[session_id] = data
         data["pg_session_id"] = pg_id
 
-    async def _reset_session(
-        self, session_id: str, base_data: dict, turns: list[dict]
-    ) -> None:
+    async def _reset_session(self, session_id: str, base_data: dict, turns: list[dict]) -> None:
         """归档后以「首锚点 + 最近轮」重建会话 (复用 session_id, 重置 pg_session_id)."""
         payload = {
             "turns": turns,
@@ -440,11 +423,7 @@ class DialogContextManager:
         """Redis Hash 字符串值 -> Python 类型."""
         turns_raw = raw.get("turns", "[]")
         try:
-            turns = (
-                json.loads(turns_raw)
-                if isinstance(turns_raw, str)
-                else (turns_raw or [])
-            )
+            turns = json.loads(turns_raw) if isinstance(turns_raw, str) else (turns_raw or [])
         except (json.JSONDecodeError, TypeError):
             turns = []
 

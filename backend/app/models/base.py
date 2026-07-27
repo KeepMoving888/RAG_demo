@@ -11,8 +11,11 @@ Enterprise RAG Knowledge Base - SQLAlchemy ORM 基类与公共 Mixin
 from datetime import datetime, timezone
 from typing import Any
 
-from sqlalchemy import DateTime, BigInteger, func
+from sqlalchemy import BigInteger, DateTime, func
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
+
+# 兼容 Python 3.10 (datetime.UTC 在 3.11+ 才有)
+UTC = timezone.utc
 
 
 class Base(DeclarativeBase):
@@ -26,15 +29,15 @@ class TimestampMixin:
 
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
-        default=lambda: datetime.now(timezone.utc),
+        default=lambda: datetime.now(UTC),
         server_default=func.now(),
         nullable=False,
         comment="创建时间 (UTC)",
     )
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
-        default=lambda: datetime.now(timezone.utc),
-        onupdate=lambda: datetime.now(timezone.utc),
+        default=lambda: datetime.now(UTC),
+        onupdate=lambda: datetime.now(UTC),
         server_default=func.now(),
         nullable=False,
         comment="更新时间 (UTC)",

@@ -20,7 +20,6 @@ GraphRAG 知识图谱 Schema 定义
 
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Optional
 
 
 # ======================== 实体类型枚举 ========================
@@ -31,16 +30,16 @@ class EntityType(str, Enum):
     任何来自 LLM 抽取的实体类型必须命中此枚举, 否则拒绝入库 (防注入).
     """
 
-    Product = "Product"            # 产品 (如 车规 eMMC)
-    Department = "Department"      # 部门 (如 质量部、研发中心)
-    Person = "Person"              # 人员 (如 张三工程师)
-    Policy = "Policy"              # 制度 (如 《供应商准入管理办法》)
-    Project = "Project"            # 项目 (如 XX 产线改造项目)
-    Standard = "Standard"          # 标准 (如 ISO 9001、GB/T 19001)
-    Supplier = "Supplier"          # 供应商
-    Customer = "Customer"          # 客户
+    Product = "Product"  # 产品 (如 车规 eMMC)
+    Department = "Department"  # 部门 (如 质量部、研发中心)
+    Person = "Person"  # 人员 (如 张三工程师)
+    Policy = "Policy"  # 制度 (如 《供应商准入管理办法》)
+    Project = "Project"  # 项目 (如 XX 产线改造项目)
+    Standard = "Standard"  # 标准 (如 ISO 9001、GB/T 19001)
+    Supplier = "Supplier"  # 供应商
+    Customer = "Customer"  # 客户
     Certification = "Certification"  # 认证 (如 ISO 9001、CE)
-    Patent = "Patent"              # 专利 (如 ZL202310458X)
+    Patent = "Patent"  # 专利 (如 ZL202310458X)
 
 
 # ======================== 关系类型枚举 ========================
@@ -51,20 +50,20 @@ class RelationType(str, Enum):
     关系方向约定: source_entity -[relation_type]-> target_entity
     """
 
-    BELONGS_TO = "BELONGS_TO"                  # 归属 (Product->Department)
-    PARTICIPATES = "PARTICIPATES"              # 参与 (Department->Project)
-    CERTIFIED_BY = "CERTIFIED_BY"              # 认证 (Product->Department/Standard)
-    REFERENCES = "REFERENCES"                  # 引用 (Policy->Standard)
-    MANAGES = "MANAGES"                        # 管理 (Person->Department/Project)
-    SUPPLIES = "SUPPLIES"                      # 供应 (Supplier->Product)
-    COLLABORATES_WITH = "COLLABORATES_WITH"    # 协作 (Department<->Department)
-    DEFINED_BY = "DEFINED_BY"                  # 定义 (Standard->Department)
-    GOVERNED_BY = "GOVERNED_BY"                # 受约束 (Product->Policy)
-    AUDITED_BY = "AUDITED_BY"                  # 审核 (Department->Certification)
-    PARTICIPATES_IN = "PARTICIPATES_IN"        # 参与 (Department->Certification)
-    INVENTED_BY = "INVENTED_BY"                # 发明 (Product->Patent/Person)
-    AUTHORED_BY = "AUTHORED_BY"                # 撰写 (Policy->Person/Department)
-    MANUFACTURES = "MANUFACTURES"              # 生产 (Supplier->Product)
+    BELONGS_TO = "BELONGS_TO"  # 归属 (Product->Department)
+    PARTICIPATES = "PARTICIPATES"  # 参与 (Department->Project)
+    CERTIFIED_BY = "CERTIFIED_BY"  # 认证 (Product->Department/Standard)
+    REFERENCES = "REFERENCES"  # 引用 (Policy->Standard)
+    MANAGES = "MANAGES"  # 管理 (Person->Department/Project)
+    SUPPLIES = "SUPPLIES"  # 供应 (Supplier->Product)
+    COLLABORATES_WITH = "COLLABORATES_WITH"  # 协作 (Department<->Department)
+    DEFINED_BY = "DEFINED_BY"  # 定义 (Standard->Department)
+    GOVERNED_BY = "GOVERNED_BY"  # 受约束 (Product->Policy)
+    AUDITED_BY = "AUDITED_BY"  # 审核 (Department->Certification)
+    PARTICIPATES_IN = "PARTICIPATES_IN"  # 参与 (Department->Certification)
+    INVENTED_BY = "INVENTED_BY"  # 发明 (Product->Patent/Person)
+    AUTHORED_BY = "AUTHORED_BY"  # 撰写 (Policy->Person/Department)
+    MANUFACTURES = "MANUFACTURES"  # 生产 (Supplier->Product)
 
 
 # ======================== 中文标签映射 ========================
@@ -115,7 +114,7 @@ class Entity:
     name: str
     type: str
     properties: dict = field(default_factory=dict)
-    source_chunk_id: Optional[int] = None
+    source_chunk_id: int | None = None
 
 
 @dataclass
@@ -138,7 +137,7 @@ class Relation:
     target_type: str
     relation_type: str
     properties: dict = field(default_factory=dict)
-    source_chunk_id: Optional[int] = None
+    source_chunk_id: int | None = None
 
 
 @dataclass

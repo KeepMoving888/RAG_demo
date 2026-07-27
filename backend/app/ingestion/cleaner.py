@@ -17,12 +17,12 @@
 - ``normalize_punctuation``：全角/半角统一、引号统一
 - ``deduplicate``：跨页去重
 """
+
 from __future__ import annotations
 
 import re
 import unicodedata
 from collections import Counter
-from typing import Any
 
 from app.ingestion.parsers.base import ParsedDocument, ParsedPage, TextBlock
 from app.utils.logger import logger
@@ -47,9 +47,7 @@ _GARBLED_MAP = {
     "\uf0a8": "○",
     "\uf0e3": "—",
 }
-_GARBLED_PATTERN = re.compile(
-    "[" + re.escape("".join(_GARBLED_MAP.keys())) + "]"
-)
+_GARBLED_PATTERN = re.compile("[" + re.escape("".join(_GARBLED_MAP.keys())) + "]")
 # 私有区字符（U+E000–U+F8FF）整体视为可疑乱码
 _PRIVATE_USE_PATTERN = re.compile(r"[\ue000-\uf8ff]")
 
@@ -130,8 +128,7 @@ class DocumentCleaner:
             removed += self._strip_lines(page, headers, footers)
         if headers or footers:
             logger.info(
-                f"移除页眉页脚: 页眉 {len(headers)} 条, 页脚 {len(footers)} 条, "
-                f"共剔除 {removed} 处"
+                f"移除页眉页脚: 页眉 {len(headers)} 条, 页脚 {len(footers)} 条, 共剔除 {removed} 处"
             )
         return pages
 
@@ -158,15 +155,9 @@ class DocumentCleaner:
         removed = 0
         for page in pages:
             before = len(page.text)
-            new_lines = [
-                ln for ln in page.text.splitlines()
-                if ln.strip() not in watermarks
-            ]
+            new_lines = [ln for ln in page.text.splitlines() if ln.strip() not in watermarks]
             page.text = "\n".join(new_lines).strip()
-            page.blocks = [
-                b for b in page.blocks
-                if b.text.strip() not in watermarks
-            ]
+            page.blocks = [b for b in page.blocks if b.text.strip() not in watermarks]
             removed += before - len(page.text)
         if watermarks:
             logger.info(f"移除水印: {len(watermarks)} 条, 共剔除 {removed} 字符")
@@ -310,6 +301,8 @@ class DocumentCleaner:
             new_lines.append(ln)
         page.text = "\n".join(new_lines).strip()
         page.blocks = [
-            b for b in page.blocks if b.text.strip() not in headers and b.text.strip() not in footers
+            b
+            for b in page.blocks
+            if b.text.strip() not in headers and b.text.strip() not in footers
         ]
         return removed

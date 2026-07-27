@@ -8,10 +8,11 @@
 3. OCR 不可用时降级返回空页并记录 warning，保证流水线不中断。
 4. 支持 png / jpg / jpeg / tiff，tiff 多帧时仅取第一帧（企业扫描件常见）。
 """
+
 from __future__ import annotations
 
 import os
-from typing import Any, Optional
+from typing import Any
 
 from app.ingestion.parsers.base import (
     BaseParser,
@@ -29,7 +30,7 @@ class ImageParser(BaseParser):
     def __init__(self) -> None:
         self._ocr_engine: Any = None
 
-    def _load_ocr(self) -> Optional[Any]:
+    def _load_ocr(self) -> Any | None:
         """懒加载 PaddleOCR 引擎，不可用时返回 None。"""
         if self._ocr_engine is None:
             try:

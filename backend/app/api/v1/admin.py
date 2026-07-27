@@ -10,17 +10,18 @@
    缓存命中率 (检索缓存命中数 / 检索总数) / 图谱节点数;
 4. 审计日志: 分页 + action 过滤, 供合规追溯.
 """
+
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Any, Optional
+from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel, EmailStr, Field
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.security import get_current_user, hash_password, require_role
+from app.core.security import hash_password, require_role
 from app.database import get_db
 from app.graphrag.neo4j_store import neo4j_store
 from app.models import AuditLog, Department, Document, QASession, User
@@ -33,13 +34,14 @@ router = APIRouter()
 # ======================== Schemas ========================
 class UserOut(BaseModel):
     """用户对外结构"""
+
     id: int
     email: str
     name: str
-    department_id: Optional[int] = None
+    department_id: int | None = None
     role: str
     is_active: bool
-    last_login_at: Optional[datetime] = None
+    last_login_at: datetime | None = None
     created_at: datetime
 
     class Config:
@@ -48,29 +50,32 @@ class UserOut(BaseModel):
 
 class CreateUserRequest(BaseModel):
     """创建用户请求"""
+
     email: EmailStr
     password: str = Field(min_length=6, max_length=128)
     name: str = Field(min_length=1, max_length=64)
-    department_id: Optional[int] = None
+    department_id: int | None = None
     role: str = Field(default="staff", pattern="^(admin|staff)$")
 
 
 class UpdateUserRequest(BaseModel):
     """更新用户请求"""
-    name: Optional[str] = Field(None, min_length=1, max_length=64)
-    department_id: Optional[int] = None
-    role: Optional[str] = Field(None, pattern="^(admin|staff)$")
-    is_active: Optional[bool] = None
-    password: Optional[str] = Field(None, min_length=6, max_length=128)
+
+    name: str | None = Field(None, min_length=1, max_length=64)
+    department_id: int | None = None
+    role: str | None = Field(None, pattern="^(admin|staff)$")
+    is_active: bool | None = None
+    password: str | None = Field(None, min_length=6, max_length=128)
 
 
 class DepartmentOut(BaseModel):
     """部门对外结构"""
+
     id: int
     code: str
     name: str
-    parent_id: Optional[int] = None
-    description: Optional[str] = None
+    parent_id: int | None = None
+    description: str | None = None
     created_at: datetime
 
     class Config:
@@ -79,14 +84,16 @@ class DepartmentOut(BaseModel):
 
 class CreateDepartmentRequest(BaseModel):
     """创建部门请求"""
+
     code: str = Field(min_length=1, max_length=64)
     name: str = Field(min_length=1, max_length=128)
-    parent_id: Optional[int] = None
-    description: Optional[str] = Field(None, max_length=512)
+    parent_id: int | None = None
+    description: str | None = Field(None, max_length=512)
 
 
 class SystemStats(BaseModel):
     """系统统计"""
+
     users: int = 0
     documents: int = 0
     qa_sessions: int = 0
@@ -97,15 +104,16 @@ class SystemStats(BaseModel):
 
 class AuditLogOut(BaseModel):
     """审计日志对外结构"""
+
     id: int
-    user_id: Optional[int] = None
+    user_id: int | None = None
     action: str
-    resource_type: Optional[str] = None
-    resource_id: Optional[str] = None
-    detail: Optional[dict[str, Any]] = None
-    ip_address: Optional[str] = None
+    resource_type: str | None = None
+    resource_id: str | None = None
+    detail: dict[str, Any] | None = None
+    ip_address: str | None = None
     status: str = "success"
-    error: Optional[str] = None
+    error: str | None = None
     created_at: datetime
 
     class Config:
@@ -115,17 +123,24 @@ class AuditLogOut(BaseModel):
 # ======================== 辅助 ========================
 def _user_to_out(user: User) -> UserOut:
     return UserOut(
-        id=user.id, email=user.email, name=user.name,
-        department_id=user.department_id, role=user.role,
-        is_active=user.is_active, last_login_at=user.last_login_at,
+        id=user.id,
+        email=user.email,
+        name=user.name,
+        department_id=user.department_id,
+        role=user.role,
+        is_active=user.is_active,
+        last_login_at=user.last_login_at,
         created_at=user.created_at,
     )
 
 
 def _dept_to_out(dept: Department) -> DepartmentOut:
     return DepartmentOut(
-        id=dept.id, code=dept.code, name=dept.name,
-        parent_id=dept.parent_id, description=dept.description,
+        id=dept.id,
+        code=dept.code,
+        name=dept.name,
+        parent_id=dept.parent_id,
+        description=dept.description,
         created_at=dept.created_at,
     )
 
@@ -135,16 +150,20 @@ async def _write_audit(
     action: str,
     admin_id: int,
     status_: str = "success",
-    error: Optional[str] = None,
-    resource_id: Optional[str] = None,
-    detail: Optional[dict] = None,
+    error: str | None = None,
+    resource_id: str | None = None,
+    detail: dict | None = None,
 ) -> None:
     """写入审计日志 (失败不阻断主流程)."""
     try:
         log = AuditLog(
-            user_id=admin_id, action=action,
-            resource_type="admin", resource_id=resource_id,
-            detail=detail or {}, status=status_, error=error,
+            user_id=admin_id,
+            action=action,
+            resource_type="admin",
+            resource_id=resource_id,
+            detail=detail or {},
+            status=status_,
+            error=error,
         )
         db.add(log)
         await db.flush()
@@ -155,7 +174,7 @@ async def _write_audit(
 # ======================== 用户管理 ========================
 @router.get("/users", response_model=PaginatedResponse[UserOut])
 async def list_users(
-    department_id: Optional[int] = Query(None, description="按部门过滤"),
+    department_id: int | None = Query(None, description="按部门过滤"),
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
     db: AsyncSession = Depends(get_db),
@@ -175,7 +194,9 @@ async def list_users(
 
     return PaginatedResponse[UserOut](
         data=[_user_to_out(u) for u in users],
-        total=total, page=page, page_size=page_size,
+        total=total,
+        page=page,
+        page_size=page_size,
         total_pages=(total + page_size - 1) // page_size if page_size else 0,
     )
 
@@ -221,7 +242,9 @@ async def create_user(
     await db.flush()
 
     await _write_audit(
-        db, "admin.user.create", admin.id,
+        db,
+        "admin.user.create",
+        admin.id,
         resource_id=str(user.id),
         detail={"email": user.email, "role": user.role},
     )
@@ -279,7 +302,9 @@ async def update_user(
     await db.flush()
 
     await _write_audit(
-        db, "admin.user.update", admin.id,
+        db,
+        "admin.user.update",
+        admin.id,
         resource_id=str(user_id),
         detail=changes,
     )
@@ -295,7 +320,8 @@ async def list_departments(
 ):
     """部门列表 (全量, 不分页)."""
     result = await db.execute(
-        select(Department).where(Department.is_deleted == False)  # noqa: E712
+        select(Department)
+        .where(Department.is_deleted == False)  # noqa: E712
         .order_by(Department.id.asc())
     )
     depts = result.scalars().all()
@@ -314,9 +340,7 @@ async def create_department(
 ):
     """创建部门."""
     # code 唯一
-    exist = await db.execute(
-        select(Department).where(Department.code == payload.code)
-    )
+    exist = await db.execute(select(Department).where(Department.code == payload.code))
     if exist.scalar_one_or_none() is not None:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
@@ -338,14 +362,18 @@ async def create_department(
             )
 
     dept = Department(
-        code=payload.code, name=payload.name,
-        parent_id=payload.parent_id, description=payload.description,
+        code=payload.code,
+        name=payload.name,
+        parent_id=payload.parent_id,
+        description=payload.description,
     )
     db.add(dept)
     await db.flush()
 
     await _write_audit(
-        db, "admin.department.create", admin.id,
+        db,
+        "admin.department.create",
+        admin.id,
         resource_id=str(dept.id),
         detail={"code": dept.code, "name": dept.name},
     )
@@ -361,34 +389,43 @@ async def system_stats(
 ):
     """系统统计: 用户数 / 文档数 / 会话数 / 检索次数 / 缓存命中率 / 图谱节点数."""
     # 用户数
-    users_count = (await db.execute(
-        select(func.count(User.id)).where(User.is_deleted == False)  # noqa: E712
-    )).scalar_one()
+    users_count = (
+        await db.execute(
+            select(func.count(User.id)).where(User.is_deleted == False)  # noqa: E712
+        )
+    ).scalar_one()
 
     # 文档数
-    docs_count = (await db.execute(
-        select(func.count(Document.id)).where(Document.is_deleted == False)  # noqa: E712
-    )).scalar_one()
+    docs_count = (
+        await db.execute(
+            select(func.count(Document.id)).where(Document.is_deleted == False)  # noqa: E712
+        )
+    ).scalar_one()
 
     # 会话数
-    sessions_count = (await db.execute(
-        select(func.count(QASession.id)).where(QASession.is_archived == False)  # noqa: E712
-    )).scalar_one()
+    sessions_count = (
+        await db.execute(
+            select(func.count(QASession.id)).where(QASession.is_archived == False)  # noqa: E712
+        )
+    ).scalar_one()
 
     # 检索次数 (审计日志 action=retrieval.search)
-    retrieval_count = (await db.execute(
-        select(func.count(AuditLog.id)).where(AuditLog.action == "retrieval.search")
-    )).scalar_one()
+    retrieval_count = (
+        await db.execute(
+            select(func.count(AuditLog.id)).where(AuditLog.action == "retrieval.search")
+        )
+    ).scalar_one()
 
     # 缓存命中率 (从 QAMessage 表统计 cache_hit 占比)
     try:
         from app.models import QAMessage
-        total_msgs = (await db.execute(
-            select(func.count(QAMessage.id))
-        )).scalar_one()
-        hit_msgs = (await db.execute(
-            select(func.count(QAMessage.id)).where(QAMessage.cache_hit == True)  # noqa: E712
-        )).scalar_one()
+
+        total_msgs = (await db.execute(select(func.count(QAMessage.id)))).scalar_one()
+        hit_msgs = (
+            await db.execute(
+                select(func.count(QAMessage.id)).where(QAMessage.cache_hit == True)  # noqa: E712
+            )
+        ).scalar_one()
         cache_hit_rate = (hit_msgs / total_msgs) if total_msgs > 0 else 0.0
     except Exception:  # noqa: BLE001
         cache_hit_rate = 0.0
@@ -401,21 +438,23 @@ async def system_stats(
     except Exception:  # noqa: BLE001
         pass
 
-    return SuccessResponse[SystemStats](data=SystemStats(
-        users=int(users_count or 0),
-        documents=int(docs_count or 0),
-        qa_sessions=int(sessions_count or 0),
-        retrieval_count=int(retrieval_count or 0),
-        cache_hit_rate=round(float(cache_hit_rate or 0.0), 4),
-        graph_nodes=int(graph_nodes or 0),
-    ))
+    return SuccessResponse[SystemStats](
+        data=SystemStats(
+            users=int(users_count or 0),
+            documents=int(docs_count or 0),
+            qa_sessions=int(sessions_count or 0),
+            retrieval_count=int(retrieval_count or 0),
+            cache_hit_rate=round(float(cache_hit_rate or 0.0), 4),
+            graph_nodes=int(graph_nodes or 0),
+        )
+    )
 
 
 # ======================== 审计日志 ========================
 @router.get("/audit-logs", response_model=PaginatedResponse[AuditLogOut])
 async def list_audit_logs(
-    action: Optional[str] = Query(None, description="按 action 过滤"),
-    user_id: Optional[int] = Query(None, description="按用户过滤"),
+    action: str | None = Query(None, description="按 action 过滤"),
+    user_id: int | None = Query(None, description="按用户过滤"),
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
     db: AsyncSession = Depends(get_db),
@@ -438,13 +477,21 @@ async def list_audit_logs(
     return PaginatedResponse[AuditLogOut](
         data=[
             AuditLogOut(
-                id=l.id, user_id=l.user_id, action=l.action,
-                resource_type=l.resource_type, resource_id=l.resource_id,
-                detail=l.detail, ip_address=l.ip_address,
-                status=l.status, error=l.error, created_at=l.created_at,
+                id=l.id,
+                user_id=l.user_id,
+                action=l.action,
+                resource_type=l.resource_type,
+                resource_id=l.resource_id,
+                detail=l.detail,
+                ip_address=l.ip_address,
+                status=l.status,
+                error=l.error,
+                created_at=l.created_at,
             )
             for l in logs
         ],
-        total=total, page=page, page_size=page_size,
+        total=total,
+        page=page,
+        page_size=page_size,
         total_pages=(total + page_size - 1) // page_size if page_size else 0,
     )

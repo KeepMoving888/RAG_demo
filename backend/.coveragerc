@@ -1,0 +1,24 @@
+[run]
+source = app
+omit =
+    # API 层需 FastAPI TestClient + 真实服务 (DB/Redis/Milvus), 由集成测试覆盖
+    app/api/*
+    # 应用入口, 由 Docker/uvicorn 启动后端到端测试覆盖
+    app/main.py
+    # Celery 异步任务, 需 worker 运行环境
+    app/celery_app.py
+    app/ingestion/tasks.py
+    app/graphrag/extractor_tasks.py
+    # OpenAI LLM 客户端, 需真实 API Key
+    app/llm/openai_llm.py
+    # Schemas 仅数据类, 无逻辑分支
+    app/schemas/*
+
+[report]
+# 排除空 __init__.py 与协议抽象方法
+exclude_lines =
+    pragma: no cover
+    def __repr__
+    raise NotImplementedError
+    if __name__ == .__main__.:
+    @abstractmethod

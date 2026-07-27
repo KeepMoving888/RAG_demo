@@ -24,14 +24,12 @@ GraphCypherQAChain - 自然语言转 Cypher 查询链
 
 import re
 import time
-from typing import Optional
 
+from app.graphrag.neo4j_store import neo4j_store
+from app.graphrag.schemas import ENTITY_LABELS_ZH, RELATION_LABELS_ZH
 from app.llm import get_llm
 from app.metrics import record_graph_query
 from app.utils.logger import logger
-from app.graphrag.neo4j_store import neo4j_store
-from app.graphrag.schemas import ENTITY_LABELS_ZH, RELATION_LABELS_ZH
-
 
 # ======================== Cypher 生成 Prompt ========================
 CYPHER_PROMPT = """你是 Cypher 查询生成助手。将用户自然语言转为 Neo4j Cypher 查询。
@@ -76,11 +74,28 @@ CYPHER_PROMPT = """你是 Cypher 查询生成助手。将用户自然语言转�
 DEFAULT_LIMIT = 50
 
 # Cypher 安全校验: 禁止的关键字 (写操作 / 危险过程 / 计划分析)
-# DETACH 单独禁止 (DETACH DELETE), 但 shortestPath 允许 (只读路径函数)
+# DETACH 优先于 DELETE 检查, 以便 DETACH DELETE 报告更精确的拒绝原因
 FORBIDDEN_KEYWORDS = [
-    "DELETE", "DETACH", "SET", "CREATE", "MERGE", "REMOVE", "DROP",
-    "CALL", "FOREACH", "LOAD", "EXPLAIN", "PROFILE", "GRANT", "REVOKE",
-    "DENY", "ALTER", "RENAME", "CONSTRAINT", "INDEX", "DATABASE",
+    "DETACH",
+    "DELETE",
+    "SET",
+    "CREATE",
+    "MERGE",
+    "REMOVE",
+    "DROP",
+    "CALL",
+    "FOREACH",
+    "LOAD",
+    "EXPLAIN",
+    "PROFILE",
+    "GRANT",
+    "REVOKE",
+    "DENY",
+    "ALTER",
+    "RENAME",
+    "CONSTRAINT",
+    "INDEX",
+    "DATABASE",
     "SHORTESTPATH",  # shortestPath 在变量长度中易触发全图遍历, 改用受控写法时单独放行
 ]
 
@@ -98,7 +113,7 @@ class GraphCypherQAChain:
     async def query(
         self,
         natural_language: str,
-        department_id: Optional[int] = None,
+        department_id: int | None = None,
     ) -> dict:
         """自然语言图谱查询
 
@@ -160,8 +175,12 @@ class GraphCypherQAChain:
 
         # 5. 格式化
         result_text = self.format_result(records)
-        logger.info("Cypher 查询完成 latency={:.0f}ms records={} | {}",
-                    latency_ms, len(records), explanation)
+        logger.info(
+            "Cypher 查询完成 latency={:.0f}ms records={} | {}",
+            latency_ms,
+            len(records),
+            explanation,
+        )
         return {
             "cypher": cypher,
             "result_text": result_text,

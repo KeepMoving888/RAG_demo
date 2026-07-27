@@ -48,7 +48,7 @@ from __future__ import annotations
 import json
 import math
 import os
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from app.utils.logger import logger
 
@@ -97,11 +97,11 @@ class RetrievalEvaluator:
 
     def __init__(
         self,
-        eval_path: Optional[str] = None,
-        retriever: Optional[Any] = None,
+        eval_path: str | None = None,
+        retriever: Any | None = None,
     ) -> None:
         self._eval_path: str = eval_path or _DEFAULT_EVAL_PATH
-        self._dataset: List[Dict[str, Any]] = []
+        self._dataset: list[dict[str, Any]] = []
         self._retriever = retriever
         self._load_dataset()
 
@@ -112,7 +112,7 @@ class RetrievalEvaluator:
         """加载评估数据集。"""
         if os.path.exists(self._eval_path):
             try:
-                with open(self._eval_path, "r", encoding="utf-8") as fh:
+                with open(self._eval_path, encoding="utf-8") as fh:
                     data = json.load(fh)
                 if isinstance(data, list):
                     self._dataset = data
@@ -142,8 +142,8 @@ class RetrievalEvaluator:
     # ------------------------------------------------------------------
     @staticmethod
     def recall_at_k(
-        retrieved_ids: List[str],
-        relevant_ids: List[str],
+        retrieved_ids: list[str],
+        relevant_ids: list[str],
         k: int = 5,
     ) -> float:
         """Recall@K：前 K 个结果中命中相关文档的比例。
@@ -158,7 +158,7 @@ class RetrievalEvaluator:
         return hits / len(relevant_ids)
 
     @staticmethod
-    def mrr(retrieved_ids: List[str], relevant_ids: List[str]) -> float:
+    def mrr(retrieved_ids: list[str], relevant_ids: list[str]) -> float:
         """MRR：第一个相关文档排名倒数。
 
         .. math::
@@ -171,8 +171,8 @@ class RetrievalEvaluator:
 
     @staticmethod
     def ndcg_at_k(
-        retrieved_ids: List[str],
-        relevance_map: Dict[str, int],
+        retrieved_ids: list[str],
+        relevance_map: dict[str, int],
         k: int = 5,
     ) -> float:
         """NDCG@K：归一化折损累积增益。
@@ -197,17 +197,15 @@ class RetrievalEvaluator:
         # IDCG（理想排序）
         ideal_rels = sorted(relevance_map.values(), reverse=True)[:k]
         idcg = sum(
-            (2**rel - 1) / math.log2(i + 1)
-            for i, rel in enumerate(ideal_rels, start=1)
-            if rel > 0
+            (2**rel - 1) / math.log2(i + 1) for i, rel in enumerate(ideal_rels, start=1) if rel > 0
         )
 
         return dcg / idcg if idcg > 0 else 0.0
 
     @staticmethod
     def precision_at_k(
-        retrieved_ids: List[str],
-        relevant_ids: List[str],
+        retrieved_ids: list[str],
+        relevant_ids: list[str],
         k: int = 5,
     ) -> float:
         """Precision@K：前 K 个结果中相关文档的比例。
@@ -224,7 +222,7 @@ class RetrievalEvaluator:
     # ------------------------------------------------------------------
     # 单策略评估
     # ------------------------------------------------------------------
-    def evaluate(self, strategy: str = "full") -> Dict[str, Any]:
+    def evaluate(self, strategy: str = "full") -> dict[str, Any]:
         """评估指定策略。
 
         Parameters
@@ -253,11 +251,11 @@ class RetrievalEvaluator:
             }
 
         retriever = self._get_retriever()
-        recalls: List[float] = []
-        mrrs: List[float] = []
-        ndcgs: List[float] = []
-        precisions: List[float] = []
-        latencies: List[float] = []
+        recalls: list[float] = []
+        mrrs: list[float] = []
+        ndcgs: list[float] = []
+        precisions: list[float] = []
+        latencies: list[float] = []
 
         # 尝试获取事件循环，无则新建
         try:
@@ -318,7 +316,7 @@ class RetrievalEvaluator:
     # ------------------------------------------------------------------
     # 消融实验
     # ------------------------------------------------------------------
-    def ablation_study(self) -> Dict[str, Any]:
+    def ablation_study(self) -> dict[str, Any]:
         """批量跑所有策略，返回对比表格。
 
         Returns
@@ -327,7 +325,7 @@ class RetrievalEvaluator:
             ``{"strategies": [各策略指标], "comparison_table": str,
             "best_strategy": str, "analysis": str}``。
         """
-        results: List[Dict[str, Any]] = []
+        results: list[dict[str, Any]] = []
         for strategy in ABLATION_STRATEGIES:
             try:
                 metrics = self.evaluate(strategy)
@@ -372,7 +370,7 @@ class RetrievalEvaluator:
             "analysis": analysis,
         }
 
-    def _format_comparison_table(self, results: List[Dict[str, Any]]) -> str:
+    def _format_comparison_table(self, results: list[dict[str, Any]]) -> str:
         """格式化对比表格为字符串。"""
         header = (
             f"{'Strategy':<28} {'Recall@5':<12} {'MRR':<10} {'NDCG@5':<12} "
@@ -388,18 +386,18 @@ class RetrievalEvaluator:
             )
         return "\n".join(lines)
 
-    def _generate_analysis(self, results: List[Dict[str, Any]]) -> str:
+    def _generate_analysis(self, results: list[dict[str, Any]]) -> str:
         """根据消融结果生成自动分析。"""
         if not results:
             return "无可用结果。"
 
-        def get(name: str) -> Dict[str, Any]:
+        def get(name: str) -> dict[str, Any]:
             for r in results:
                 if r["strategy"] == name:
                     return r
             return {"ndcg@5": 0.0, "recall@5": 0.0}
 
-        parts: List[str] = []
+        parts: list[str] = []
 
         # 融合增益
         rrf = get("rrf")

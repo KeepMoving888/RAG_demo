@@ -25,16 +25,15 @@
 
 import json
 import time
-from typing import AsyncIterator, Optional
+from collections.abc import AsyncIterator
 
 from app.config import settings
-from app.metrics import DIALOG_TURN_COUNT, QA_RESPONSE_LATENCY
-from app.utils.logger import logger
-
 from app.dialog.citation import CitationExtractor
 from app.dialog.context_manager import DialogContextManager
 from app.dialog.qa_cache import QACache
 from app.dialog.query_rewriter import QueryRewriter
+from app.metrics import DIALOG_TURN_COUNT, QA_RESPONSE_LATENCY
+from app.utils.logger import logger
 
 
 class AnswerGenerator:
@@ -57,10 +56,10 @@ class AnswerGenerator:
 
     def __init__(
         self,
-        context_manager: Optional[DialogContextManager] = None,
-        rewriter: Optional[QueryRewriter] = None,
-        cache: Optional[QACache] = None,
-        citation_extractor: Optional[CitationExtractor] = None,
+        context_manager: DialogContextManager | None = None,
+        rewriter: QueryRewriter | None = None,
+        cache: QACache | None = None,
+        citation_extractor: CitationExtractor | None = None,
     ) -> None:
         self._context_manager = context_manager or DialogContextManager()
         self._rewriter = rewriter or QueryRewriter()
@@ -73,7 +72,7 @@ class AnswerGenerator:
         query: str,
         session_id: str,
         user_id: int,
-        department_id: Optional[int],
+        department_id: int | None,
         top_k: int = 5,
     ) -> dict:
         """
@@ -101,9 +100,7 @@ class AnswerGenerator:
                 "answer": cached["answer"],
                 "citations": cached["citations"],
                 "rewritten_query": rewritten_query,
-                "retrieved_chunks": [
-                    {"id": cid} for cid in cached.get("retrieved_chunk_ids", [])
-                ],
+                "retrieved_chunks": [{"id": cid} for cid in cached.get("retrieved_chunk_ids", [])],
                 "latency_ms": round(latency_ms, 2),
                 "cache_hit": True,
                 "answer_source": "cache",
@@ -118,7 +115,8 @@ class AnswerGenerator:
             self._report_metrics(latency_ms, result["turn_count"])
             logger.info(
                 "QA 缓存命中: session={} latency={:.0f}ms",
-                session_id, latency_ms,
+                session_id,
+                latency_ms,
             )
             return result
 
@@ -129,18 +127,14 @@ class AnswerGenerator:
         messages = self._build_messages(query, rewritten_query, context, chunks)
 
         # 6. LLM 生成 (含失败兜底)
-        answer, answer_source = await self._generate_with_fallback(
-            messages, query, chunks
-        )
+        answer, answer_source = await self._generate_with_fallback(messages, query, chunks)
 
         # 7. 答案溯源
         citations = await self._citation.extract(answer, chunks)
 
         # 8. 写入缓存
         chunk_ids = [str(c.get("id", "")) for c in chunks if c.get("id")]
-        await self._cache.set(
-            rewritten_query, department_id, answer, citations, chunk_ids
-        )
+        await self._cache.set(rewritten_query, department_id, answer, citations, chunk_ids)
 
         latency_ms = (time.time() - started) * 1000
         result = {
@@ -156,9 +150,7 @@ class AnswerGenerator:
         }
 
         # 9 & 10. 写入上下文 + 持久化
-        await self._finalize(
-            session_id, query, rewritten_query, result, user_id, from_cache=False
-        )
+        await self._finalize(session_id, query, rewritten_query, result, user_id, from_cache=False)
         result["turn_count"] = await self._context_manager.get_turn_count(session_id)
 
         # 11. 指标上报
@@ -166,7 +158,10 @@ class AnswerGenerator:
 
         logger.info(
             "QA 生成完成: session={} source={} latency={:.0f}ms citations={}",
-            session_id, answer_source, latency_ms, len(citations),
+            session_id,
+            answer_source,
+            latency_ms,
+            len(citations),
         )
         return result
 
@@ -176,7 +171,7 @@ class AnswerGenerator:
         query: str,
         session_id: str,
         user_id: int,
-        department_id: Optional[int],
+        department_id: int | None,
         top_k: int = 5,
     ) -> AsyncIterator[str]:
         """
@@ -205,9 +200,7 @@ class AnswerGenerator:
                 "answer": answer,
                 "citations": citations,
                 "rewritten_query": rewritten_query,
-                "retrieved_chunks": [
-                    {"id": cid} for cid in cached.get("retrieved_chunk_ids", [])
-                ],
+                "retrieved_chunks": [{"id": cid} for cid in cached.get("retrieved_chunk_ids", [])],
                 "latency_ms": round(latency_ms, 2),
                 "cache_hit": True,
                 "answer_source": "cache",
@@ -233,9 +226,7 @@ class AnswerGenerator:
             from app.llm import get_llm
 
             llm = get_llm()
-            async for token in llm.agenerate_stream(
-                messages, temperature=settings.llm_temperature
-            ):
+            async for token in llm.agenerate_stream(messages, temperature=settings.llm_temperature):
                 if token:
                     answer_parts.append(token)
                     yield token
@@ -251,9 +242,7 @@ class AnswerGenerator:
         # 3. 溯源 + 缓存 + 持久化 + 元数据帧
         citations = await self._citation.extract(answer, chunks)
         chunk_ids = [str(c.get("id", "")) for c in chunks if c.get("id")]
-        await self._cache.set(
-            rewritten_query, department_id, answer, citations, chunk_ids
-        )
+        await self._cache.set(rewritten_query, department_id, answer, citations, chunk_ids)
 
         latency_ms = (time.time() - started) * 1000
         result = {
@@ -267,9 +256,7 @@ class AnswerGenerator:
             "session_id": session_id,
             "turn_count": 0,
         }
-        await self._finalize(
-            session_id, query, rewritten_query, result, user_id, from_cache=False
-        )
+        await self._finalize(session_id, query, rewritten_query, result, user_id, from_cache=False)
         result["turn_count"] = await self._context_manager.get_turn_count(session_id)
         self._report_metrics(latency_ms, result["turn_count"])
 
@@ -279,7 +266,7 @@ class AnswerGenerator:
     async def _retrieve(
         self,
         rewritten_query: str,
-        department_id: Optional[int],
+        department_id: int | None,
         top_k: int,
     ) -> list[dict]:
         """调用 HybridRetriever 获取召回 chunks (方法内 import 避免循环依赖)."""
@@ -297,7 +284,8 @@ class AnswerGenerator:
             chunks = result.get("chunks", []) if isinstance(result, dict) else []
             logger.debug(
                 "检索完成: query={!r} chunks={} latency={:.0f}ms",
-                rewritten_query, len(chunks),
+                rewritten_query,
+                len(chunks),
                 result.get("latency_ms", 0) if isinstance(result, dict) else 0,
             )
             return chunks
@@ -358,9 +346,7 @@ class AnswerGenerator:
             from app.llm import get_llm
 
             llm = get_llm()
-            resp = await llm.agenerate(
-                messages, temperature=settings.llm_temperature
-            )
+            resp = await llm.agenerate(messages, temperature=settings.llm_temperature)
             if resp.text and resp.text.strip():
                 return resp.text, "llm"
             # 空回复视为失败
@@ -479,7 +465,7 @@ class AnswerGenerator:
 
 
 # ======================== 单例工厂 ========================
-_generator: Optional[AnswerGenerator] = None
+_generator: AnswerGenerator | None = None
 
 
 def get_generator() -> AnswerGenerator:

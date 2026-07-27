@@ -1,23 +1,24 @@
 """LLM 工厂: 按 settings.llm_provider 选择实现"""
 
 from functools import lru_cache
-from typing import Optional
 
 from app.config import settings
 from app.llm.base import BaseLLM
 
 
 @lru_cache
-def get_llm(provider: Optional[str] = None) -> BaseLLM:
+def get_llm(provider: str | None = None) -> BaseLLM:
     """获取 LLM 单例"""
     provider = provider or settings.llm_provider
 
     if provider == "offline":
         from app.llm.offline_llm import OfflineLLM
+
         return OfflineLLM(model="offline-rule-based")
 
     if provider == "openai":
         from app.llm.openai_llm import OpenAICompatibleLLM
+
         return OpenAICompatibleLLM(
             model=settings.openai_model,
             api_key=settings.openai_api_key,
@@ -26,6 +27,7 @@ def get_llm(provider: Optional[str] = None) -> BaseLLM:
 
     if provider == "deepseek":
         from app.llm.openai_llm import OpenAICompatibleLLM
+
         return OpenAICompatibleLLM(
             model=settings.deepseek_model,
             api_key=settings.deepseek_api_key,

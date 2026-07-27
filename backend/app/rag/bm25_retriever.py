@@ -26,7 +26,7 @@ BM25 是基于词频（tf）与逆文档频率（idf）的概率检索模型，�
 from __future__ import annotations
 
 import math
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from app.config import settings
 from app.utils.logger import logger
@@ -54,14 +54,14 @@ class BM25Retriever:
         文档长度归一化参数，默认取 settings.bm25_b。
     """
 
-    def __init__(self, k1: Optional[float] = None, b: Optional[float] = None) -> None:
+    def __init__(self, k1: float | None = None, b: float | None = None) -> None:
         self._k1: float = k1 if k1 is not None else getattr(settings, "bm25_k1", 1.5)
         self._b: float = b if b is not None else getattr(settings, "bm25_b", 0.75)
 
         # 索引数据
-        self._bm25: Optional["BM25Okapi"] = None
-        self._corpus: List[Dict[str, Any]] = []  # 原始文档列表
-        self._tokenized_corpus: List[List[str]] = []  # 分词后的语料
+        self._bm25: BM25Okapi | None = None
+        self._corpus: list[dict[str, Any]] = []  # 原始文档列表
+        self._tokenized_corpus: list[list[str]] = []  # 分词后的语料
         self._tokenizer = get_tokenizer()
 
     # ------------------------------------------------------------------
@@ -69,7 +69,7 @@ class BM25Retriever:
     # ------------------------------------------------------------------
     def build_index(
         self,
-        documents: List[Dict[str, Any]],
+        documents: list[dict[str, Any]],
         content_field: str = "content",
     ) -> int:
         """构建 BM25 索引。
@@ -97,9 +97,7 @@ class BM25Retriever:
             for doc in self._corpus
         ]
 
-        self._bm25 = BM25Okapi(
-            self._tokenized_corpus, k1=self._k1, b=self._b
-        )
+        self._bm25 = BM25Okapi(self._tokenized_corpus, k1=self._k1, b=self._b)
         logger.info(
             "BM25 索引构建完成: 文档数=%d, k1=%.2f, b=%.2f",
             self.corpus_size,
@@ -110,7 +108,7 @@ class BM25Retriever:
 
     def add_documents(
         self,
-        documents: List[Dict[str, Any]],
+        documents: list[dict[str, Any]],
         content_field: str = "content",
     ) -> int:
         """增量添加文档（实际为全量重建）。
@@ -157,8 +155,8 @@ class BM25Retriever:
         query: str,
         top_k: int = 10,
         score_threshold: float = 0.0,
-        term_weights: Optional[Dict[str, float]] = None,
-    ) -> List[Dict[str, Any]]:
+        term_weights: dict[str, float] | None = None,
+    ) -> list[dict[str, Any]]:
         """BM25 检索。
 
         Parameters
@@ -192,14 +190,12 @@ class BM25Retriever:
 
         # 应用词项权重：对术语 token 的 tf 贡献加权
         if term_weights:
-            weighted_scores = self._apply_term_weights(
-                base_scores, query_tokens, term_weights
-            )
+            weighted_scores = self._apply_term_weights(base_scores, query_tokens, term_weights)
         else:
             weighted_scores = base_scores
 
         # 收集、过滤、排序
-        scored: List[Dict[str, Any]] = []
+        scored: list[dict[str, Any]] = []
         for idx, score in enumerate(weighted_scores):
             if score >= score_threshold:
                 doc = dict(self._corpus[idx])
@@ -226,49 +222,32 @@ class BM25Retriever:
     def _apply_term_weights(
         self,
         base_scores: Any,
-        query_tokens: List[str],
-        term_weights: Dict[str, float],
-    ) -> List[float]:
+        query_tokens: list[str],
+        term_weights: dict[str, float],
+    ) -> list[float]:
         """对术语命中的 token 加权 BM25 得分。
 
-        策略：对每个文档，重新计算加权得分。加权逻辑是对术语 token 的
-        ``get_scores`` 贡献乘以权重。由于 ``rank_bm25`` 的 ``get_scores``
-        返回的是各 token 贡献之和，这里采用近似：对术语 token 单独计算
-        其贡献，乘以权重后与非术语 token 贡献相加。
-
-        为简化实现且保持正确性，采用如下策略：对术语 token 用
-        ``get_scores`` 单独取分再加权，对非术语 token 取等权分数。
+        策略：``base_scores`` 已包含全部 token 的等权 (1.0) 贡献。
+        对术语 token，额外叠加 ``(weight - 1.0)`` 倍的单 token 贡献，
+        使其总贡献从 1.0x 提升到 ``weight`` x。非术语 token 不变。
         """
-        # 分离术语 token 与普通 token
-        term_tokens = [t for t in query_tokens if t in term_weights]
-        normal_tokens = [t for t in query_tokens if t not in term_weights]
-
-        # 普通 token 的等权得分
-        if normal_tokens:
-            normal_scores = self._bm25.get_scores(normal_tokens)
-        else:
-            normal_scores = [0.0] * self.corpus_size
-
-        # 术语 token 的加权得分
-        weighted_sum = list(normal_scores)
-        if term_tokens:
-            term_scores = self._bm25.get_scores(term_tokens)
-            for i, t in enumerate(term_tokens):
-                weight = term_weights.get(t, 1.0)
-                # 逐 token 累加加权贡献
-                single_scores = self._bm25.get_scores([t])
-                for doc_idx in range(self.corpus_size):
-                    # 减去等权贡献，加上加权贡献
-                    weighted_sum[doc_idx] += single_scores[doc_idx] * (
-                        weight - 1.0
-                    )
-
+        weighted_sum = list(base_scores)
+        for t in query_tokens:
+            if t not in term_weights:
+                continue
+            weight = term_weights.get(t, 1.0)
+            if weight == 1.0:
+                continue
+            # 单 token 的 BM25 贡献
+            single_scores = self._bm25.get_scores([t])
+            for doc_idx in range(self.corpus_size):
+                weighted_sum[doc_idx] += single_scores[doc_idx] * (weight - 1.0)
         return weighted_sum
 
     # ------------------------------------------------------------------
     # 可解释性
     # ------------------------------------------------------------------
-    def explain_score(self, query: str, doc_index: int) -> Dict[str, Any]:
+    def explain_score(self, query: str, doc_index: int) -> dict[str, Any]:
         """解释某文档对 query 的 BM25 得分构成。
 
         输出每个 query token 的 tf、idf、contribution，便于排查召回问题。
@@ -296,7 +275,7 @@ class BM25Retriever:
         doc_tokens = self._tokenized_corpus[doc_index]
         doc_len = len(doc_tokens)
 
-        token_details: List[Dict[str, Any]] = []
+        token_details: list[dict[str, Any]] = []
         total_score = 0.0
 
         for token in query_tokens:
@@ -310,17 +289,9 @@ class BM25Retriever:
 
             # BM25 tf 项
             if tf > 0 and doc_freq > 0:
-                tf_component = (
-                    (tf * (self._k1 + 1))
-                    / (
-                        tf
-                        + self._k1
-                        * (
-                            1
-                            - self._b
-                            + self._b * (doc_len / max(self.avg_doc_length, 1))
-                        )
-                    )
+                tf_component = (tf * (self._k1 + 1)) / (
+                    tf
+                    + self._k1 * (1 - self._b + self._b * (doc_len / max(self.avg_doc_length, 1)))
                 )
                 contribution = idf * tf_component
             else:
@@ -360,9 +331,7 @@ class BM25Retriever:
         """语料平均文档长度（token 数）。"""
         if not self._tokenized_corpus:
             return 0.0
-        return sum(len(d) for d in self._tokenized_corpus) / len(
-            self._tokenized_corpus
-        )
+        return sum(len(d) for d in self._tokenized_corpus) / len(self._tokenized_corpus)
 
     def get_doc_freq(self, term: str) -> int:
         """返回含指定 term 的文档数。"""

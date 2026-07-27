@@ -11,10 +11,8 @@
 
 评估在离线模式下用 BM25 近似复现向量召回, 保证全链路在无 GPU 环境可运行.
 """
-from __future__ import annotations
 
-import os
-from typing import Any, Optional
+from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel
@@ -31,6 +29,7 @@ router = APIRouter()
 # ======================== Schemas ========================
 class StrategyMetrics(BaseModel):
     """单策略评估指标"""
+
     strategy: str
     sample_count: int = 0
     recall_at_5: float = 0.0
@@ -38,11 +37,12 @@ class StrategyMetrics(BaseModel):
     ndcg_at_5: float = 0.0
     precision_at_5: float = 0.0
     avg_latency_ms: float = 0.0
-    error: Optional[str] = None
+    error: str | None = None
 
 
 class AblationResponse(BaseModel):
     """消融实验响应"""
+
     strategies: list[StrategyMetrics] = []
     comparison_table: str = ""
     best_strategy: str = "none"
@@ -51,6 +51,7 @@ class AblationResponse(BaseModel):
 
 class DatasetItem(BaseModel):
     """评估数据集单条样本"""
+
     query: str
     relevant_chunk_ids: list[str] = []
     relevance_level: dict[str, int] = {}
@@ -58,6 +59,7 @@ class DatasetItem(BaseModel):
 
 class DatasetResponse(BaseModel):
     """评估数据集响应"""
+
     path: str
     size: int = 0
     items: list[DatasetItem] = []
@@ -104,12 +106,14 @@ async def ablation_study(
 
     strategies = [_to_metrics(s) for s in result.get("strategies", []) or []]
 
-    return SuccessResponse[AblationResponse](data=AblationResponse(
-        strategies=strategies,
-        comparison_table=result.get("comparison_table", "") or "",
-        best_strategy=result.get("best_strategy", "none") or "none",
-        analysis=result.get("analysis", "") or "",
-    ))
+    return SuccessResponse[AblationResponse](
+        data=AblationResponse(
+            strategies=strategies,
+            comparison_table=result.get("comparison_table", "") or "",
+            best_strategy=result.get("best_strategy", "none") or "none",
+            analysis=result.get("analysis", "") or "",
+        )
+    )
 
 
 @router.get("/strategy", response_model=SuccessResponse[StrategyMetrics])
@@ -154,8 +158,10 @@ async def get_dataset(
         for s in evaluator._dataset  # noqa: SLF001
     ]
 
-    return SuccessResponse[DatasetResponse](data=DatasetResponse(
-        path=evaluator._eval_path,  # noqa: SLF001
-        size=evaluator.dataset_size,
-        items=items,
-    ))
+    return SuccessResponse[DatasetResponse](
+        data=DatasetResponse(
+            path=evaluator._eval_path,  # noqa: SLF001
+            size=evaluator.dataset_size,
+            items=items,
+        )
+    )

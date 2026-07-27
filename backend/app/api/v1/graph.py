@@ -12,9 +12,10 @@
 5. /rebuild: 重建图谱 (仅 admin), 触发 Celery 任务对全部 ready 文档批量抽取;
 6. /stats: 图谱统计 (节点 / 关系数量, 按标签分组).
 """
+
 from __future__ import annotations
 
-from typing import Any, Optional
+from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel, Field
@@ -35,12 +36,14 @@ router = APIRouter()
 # ======================== Schemas ========================
 class GraphQueryRequest(BaseModel):
     """图谱查询请求"""
+
     natural_language: str = Field(min_length=1, max_length=2048)
-    department_id: Optional[int] = None
+    department_id: int | None = None
 
 
 class GraphQueryResponse(BaseModel):
     """图谱查询响应"""
+
     cypher: str
     result_text: str
     records: list[dict[str, Any]] = []
@@ -49,16 +52,18 @@ class GraphQueryResponse(BaseModel):
 
 class EntityOut(BaseModel):
     """实体对外结构"""
-    element_id: Optional[str] = None
+
+    element_id: str | None = None
     labels: list[str] = []
-    name: Optional[str] = None
-    type: Optional[str] = None
+    name: str | None = None
+    type: str | None = None
     source_chunks: list[int] = []
     properties: dict[str, Any] = {}
 
 
 class RelationOut(BaseModel):
     """关系 (邻居) 对外结构"""
+
     neighbor: dict[str, Any] = {}
     labels: list[str] = []
     relations: list[str] = []
@@ -66,12 +71,14 @@ class RelationOut(BaseModel):
 
 class PathOut(BaseModel):
     """路径对外结构"""
+
     nodes: list[dict[str, Any]] = []
     relationships: list[dict[str, Any]] = []
 
 
 class GraphStatsOut(BaseModel):
     """图谱统计"""
+
     available: bool = False
     nodes: int = 0
     relationships: int = 0
@@ -80,6 +87,7 @@ class GraphStatsOut(BaseModel):
 
 class RebuildResponse(BaseModel):
     """重建图谱响应"""
+
     triggered: bool = True
     document_count: int = 0
     task_ids: list[str] = []
@@ -109,18 +117,20 @@ async def graph_query(
             detail=f"图谱查询失败: {exc}",
         )
 
-    return SuccessResponse[GraphQueryResponse](data=GraphQueryResponse(
-        cypher=result.get("cypher", ""),
-        result_text=result.get("result_text", ""),
-        records=result.get("records", []) or [],
-        latency_ms=float(result.get("latency_ms", 0.0) or 0.0),
-    ))
+    return SuccessResponse[GraphQueryResponse](
+        data=GraphQueryResponse(
+            cypher=result.get("cypher", ""),
+            result_text=result.get("result_text", ""),
+            records=result.get("records", []) or [],
+            latency_ms=float(result.get("latency_ms", 0.0) or 0.0),
+        )
+    )
 
 
 @router.get("/entities", response_model=SuccessResponse[EntityOut])
 async def get_entity(
     name: str = Query(..., min_length=1, max_length=256, description="实体名称"),
-    entity_type: Optional[str] = Query(None, description="实体类型, 如 Product"),
+    entity_type: str | None = Query(None, description="实体类型, 如 Product"),
     current_user: User = Depends(get_current_user),
 ):
     """按名称 (可选类型) 检索单个实体."""
@@ -144,14 +154,16 @@ async def get_entity(
             detail=f"实体不存在: {name}",
         )
 
-    return SuccessResponse[EntityOut](data=EntityOut(
-        element_id=entity.get("element_id"),
-        labels=entity.get("labels", []) or [],
-        name=entity.get("name"),
-        type=entity.get("type"),
-        source_chunks=entity.get("source_chunks", []) or [],
-        properties=entity.get("properties", {}) or {},
-    ))
+    return SuccessResponse[EntityOut](
+        data=EntityOut(
+            element_id=entity.get("element_id"),
+            labels=entity.get("labels", []) or [],
+            name=entity.get("name"),
+            type=entity.get("type"),
+            source_chunks=entity.get("source_chunks", []) or [],
+            properties=entity.get("properties", {}) or {},
+        )
+    )
 
 
 @router.get("/relations", response_model=SuccessResponse[list[RelationOut]])
@@ -205,7 +217,9 @@ async def get_paths(
     paths = [
         PathOut(
             nodes=rec.get("p", {}).get("nodes", []) or [] if isinstance(rec.get("p"), dict) else [],
-            relationships=rec.get("p", {}).get("relationships", []) or [] if isinstance(rec.get("p"), dict) else [],
+            relationships=rec.get("p", {}).get("relationships", []) or []
+            if isinstance(rec.get("p"), dict)
+            else [],
         )
         for rec in (records or [])
     ]
@@ -244,14 +258,18 @@ async def rebuild_graph(
 
     logger.info(
         "图谱重建已触发: docs={} tasks={} by admin={}",
-        len(docs), len(task_ids), admin.id,
+        len(docs),
+        len(task_ids),
+        admin.id,
     )
 
-    return SuccessResponse[RebuildResponse](data=RebuildResponse(
-        triggered=True,
-        document_count=len(docs),
-        task_ids=task_ids,
-    ))
+    return SuccessResponse[RebuildResponse](
+        data=RebuildResponse(
+            triggered=True,
+            document_count=len(docs),
+            task_ids=task_ids,
+        )
+    )
 
 
 @router.get("/stats", response_model=SuccessResponse[GraphStatsOut])
@@ -268,9 +286,11 @@ async def graph_stats(
             detail=f"图谱统计失败: {exc}",
         )
 
-    return SuccessResponse[GraphStatsOut](data=GraphStatsOut(
-        available=bool(stats.get("available", False)),
-        nodes=int(stats.get("nodes", 0) or 0),
-        relationships=int(stats.get("relationships", 0) or 0),
-        by_label={str(k): int(v) for k, v in (stats.get("by_label", {}) or {}).items()},
-    ))
+    return SuccessResponse[GraphStatsOut](
+        data=GraphStatsOut(
+            available=bool(stats.get("available", False)),
+            nodes=int(stats.get("nodes", 0) or 0),
+            relationships=int(stats.get("relationships", 0) or 0),
+            by_label={str(k): int(v) for k, v in (stats.get("by_label", {}) or {}).items()},
+        )
+    )

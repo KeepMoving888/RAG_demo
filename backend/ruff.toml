@@ -1,0 +1,58 @@
+# ruff 配置 - 后端 lint + format
+# https://docs.astral.sh/ruff/configuration/
+
+# 目标 Python 3.10 (本地开发环境), CI 使用 3.11
+# 兼容性优先: 避免 ruff 建议仅 3.11+ 才支持的语法
+target-version = "py310"
+line-length = 100
+extend-exclude = ["data", "logs", ".pytest_cache"]
+
+[lint]
+# 启用规则集:
+# - E: pycodestyle errors
+# - F: pyflakes (未使用变量/导入)
+# - W: pycodestyle warnings
+# - I: isort (import 排序)
+# - UP: pyupgrade (语法现代化)
+# - B: flake8-bugbear (常见 bug 模式)
+# - SIM: flake8-simplify (代码简化)
+select = ["E", "F", "W", "I", "UP", "B", "SIM"]
+# 容忍的规则 (企业项目常见, 不强制修改):
+# - E501: 行太长 (format 已处理, 残余超长行多为中文注释/URL)
+# - E402: import 不在顶部 (conftest 需先设环境变量再导入 app)
+# - E741: 模糊变量名 (l/I/O 等, BM25 参数 b/k1 等科学计算常用)
+# - B008: 函数默认值中调用函数 (FastAPI Depends 模式)
+# - B019: lru_cache on methods (单例 tokenizer 缓存模式, 生命周期与进程一致)
+# - B904: raise from err (API 层统一异常处理, 不逐个加 from)
+# - B905: zip without strict (Python 3.10+ 参数, 兼容性优先)
+# - B039: mutable ContextVar default (单例模式, 进程级初始化一次)
+# - B007: 未使用循环变量 (可读性优先, 保留语义命名)
+# - SIM102: 嵌套 if (权限检查可读性优先)
+# - SIM103: 直接返回条件 (可读性优先)
+# - SIM105: try-except-pass (降级模式, 故意吞异常)
+# - SIM108: 三元运算符 (if-else 可读性优先)
+# - SIM117: 嵌套 with (可读性优先)
+# - UP017: datetime.UTC 别名 (3.11+ 才有, 用 timezone.utc 兼容 3.10)
+# - UP042: StrEnum (str+Enum 兼容旧 Python, 不强制升级)
+# - F811: logger 重定义 (loguru import + _setup_logger 覆盖, 故意模式)
+# - F821: 未定义名称 (registry.py 类型注解, 已有 type: ignore)
+# - F841: 未使用变量 (API 层预留变量, 不影响功能)
+ignore = [
+    "E501", "E402", "E741",
+    "B008", "B019", "B904", "B905", "B039", "B007",
+    "SIM102", "SIM103", "SIM105", "SIM108", "SIM117",
+    "UP017", "UP042",
+    "F811", "F821", "F841",
+]
+
+[lint.per-file-ignores]
+# 测试文件: 允许未使用导入 (pytest fixture) 与 assert
+"tests/*" = ["F401", "F841"]
+# 脚本目录: 允许 print
+"scripts/*" = ["T201", "T203"]
+
+[format]
+# 使用双引号, trailing comma, 4 空格缩进 (PEP 8 标准)
+quote-style = "double"
+indent-style = "space"
+skip-magic-trailing-comma = false

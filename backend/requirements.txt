@@ -60,7 +60,8 @@ paddlepaddle==3.0.0
 # ======================== 认证与安全 ========================
 python-jose[cryptography]==3.3.0
 passlib[bcrypt]==1.7.4
-bcrypt==4.2.1
+# bcrypt 3.2.2: 与 passlib 兼容性最佳 (4.x 存在 verify 边界问题)
+bcrypt==3.2.2
 
 # ======================== 监控 ========================
 prometheus-client==0.21.1
@@ -82,3 +83,5 @@ pytest==8.3.4
 pytest-asyncio==0.24.0
 pytest-cov==6.0.0
 httpx==0.28.1
+# aiosqlite: 测试用 SQLite 异步驱动 (conftest.py 内存库)
+aiosqlite==0.20.0
