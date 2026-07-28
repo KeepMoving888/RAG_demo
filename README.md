@@ -16,9 +16,7 @@ Enterprise RAG Knowledge Base 是一套面向中大型企业的内部智能问�
 
 > **场景声明**：本项目以半导体存储行业为示例场景（种子文档 45 篇 + 业务术语词典 ~45 条），核心架构（混合检索 / GraphRAG / 部门权限隔离 / 全链路降级 / 监控告警）可平移至任意行业知识库场景，仅需替换 `backend/data/seed/` 种子数据与 `terminology.json` 术语词典。
 
-### 前端预览
 
-![Enterprise RAG Dashboard](docs/images/frontend-dashboard.png)
 
 ### 适用场景
 
